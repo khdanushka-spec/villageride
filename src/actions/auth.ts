@@ -2,6 +2,7 @@
 
 import { z } from "zod";
 import { redirect } from "next/navigation";
+import { AuthError } from "next-auth";
 import { signIn, signOut } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { hashPassword } from "@/lib/password";
@@ -12,6 +13,21 @@ import { ROLE_HOME } from "@/lib/rbac";
 import type { VehicleType } from "@prisma/client";
 
 export type ActionState = { error?: string; success?: string; redirectTo?: string } | undefined;
+
+/**
+ * signIn() with redirect: false still throws (not returns {error}) on bad
+ * credentials in this NextAuth version — an uncaught throw here crashes the
+ * Server Action into Next's generic error page instead of showing a message.
+ */
+async function trySignIn(...args: Parameters<typeof signIn>): Promise<{ error?: string }> {
+  try {
+    await signIn(...args);
+    return {};
+  } catch (err) {
+    if (err instanceof AuthError) return { error: "auth" };
+    throw err;
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Email + password
@@ -26,8 +42,8 @@ export async function loginWithEmailAction(_prev: ActionState, formData: FormDat
   const parsed = emailLoginSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return { error: parsed.error.issues[0].message };
 
-  const result = await signIn("credentials", { ...parsed.data, redirect: false });
-  if (result?.error) return { error: "Invalid email or password." };
+  const result = await trySignIn("credentials", { ...parsed.data, redirect: false });
+  if (result.error) return { error: "Invalid email or password." };
 
   const user = await prisma.user.findUnique({ where: { email: parsed.data.email.toLowerCase() } });
   return { redirectTo: user ? ROLE_HOME[user.role] : "/" };
@@ -60,8 +76,8 @@ export async function registerCustomerWithEmailAction(
     },
   });
 
-  const result = await signIn("credentials", { email: email.toLowerCase(), password, redirect: false });
-  if (result?.error) return { error: "Account created, but sign-in failed. Try logging in." };
+  const result = await trySignIn("credentials", { email: email.toLowerCase(), password, redirect: false });
+  if (result.error) return { error: "Account created, but sign-in failed. Try logging in." };
 
   return { redirectTo: ROLE_HOME.CUSTOMER };
 }
@@ -108,8 +124,8 @@ export async function verifyPhoneOtpAction(
   if (!/^\d{6}$/.test(code)) return { error: "Enter the 6-digit code." };
   if (intent === "register" && name.trim().length < 2) return { error: "Enter your full name." };
 
-  const result = await signIn("phone-otp", { phone, code, name, intent, redirect: false });
-  if (result?.error) return { error: "Invalid or expired code." };
+  const result = await trySignIn("phone-otp", { phone, code, name, intent, redirect: false });
+  if (result.error) return { error: "Invalid or expired code." };
 
   const user = await prisma.user.findUnique({ where: { phone } });
   return { redirectTo: user ? ROLE_HOME[user.role] : "/" };
@@ -207,8 +223,8 @@ export async function registerDriverAction(_prev: ActionState, formData: FormDat
     },
   });
 
-  const result = await signIn("credentials", { email: data.email.toLowerCase(), password: data.password, redirect: false });
-  if (result?.error) return { error: "Registration submitted, but sign-in failed. Try logging in." };
+  const result = await trySignIn("credentials", { email: data.email.toLowerCase(), password: data.password, redirect: false });
+  if (result.error) return { error: "Registration submitted, but sign-in failed. Try logging in." };
 
   return { redirectTo: ROLE_HOME.DRIVER };
 }
