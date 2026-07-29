@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { ProfileForm } from "@/components/dashboard/profile-form";
+import { ChangePasswordForm } from "@/components/dashboard/change-password-form";
 
 export const dynamic = "force-dynamic";
 
@@ -19,6 +20,7 @@ export default async function CustomerProfilePage() {
         <p className="text-sm text-muted-foreground">Your account details.</p>
       </div>
       <ProfileForm name={user.name} email={user.email} phone={user.phone} />
+      <ChangePasswordForm />
     </div>
   );
 }

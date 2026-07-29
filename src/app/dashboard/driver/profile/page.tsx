@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { ProfileForm } from "@/components/dashboard/profile-form";
+import { ChangePasswordForm } from "@/components/dashboard/change-password-form";
 import { Badge } from "@/components/ui/badge";
 import { VEHICLE_TYPE_LABELS } from "@/lib/vehicle-types";
 import { Star } from "lucide-react";
@@ -42,6 +43,7 @@ export default async function DriverProfilePage() {
       </div>
 
       <ProfileForm name={user.name} email={user.email} phone={user.phone} />
+      <ChangePasswordForm />
 
       <div className="max-w-md space-y-4 rounded-2xl border border-border bg-card p-5">
         <div className="flex items-center justify-between">
