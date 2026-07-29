@@ -1,0 +1,648 @@
+// VillageRide Sri Lanka — core database schema
+// Normalized PostgreSQL schema served through Prisma ORM.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================
+// ENUMS
+// ============================================================
+
+enum Role {
+  SUPER_ADMIN
+  ASSOCIATION_ADMIN
+  DRIVER
+  CUSTOMER
+}
+
+enum Locale {
+  EN
+  SI
+  TA
+}
+
+enum AssociationStatus {
+  PENDING
+  ACTIVE
+  SUSPENDED
+}
+
+enum DriverStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  SUSPENDED
+}
+
+enum VehicleType {
+  TAXI
+  THREE_WHEELER
+  VAN
+  MINI_VAN
+  SUV
+  BUS
+  TRUCK
+  LORRY
+  DELIVERY_VEHICLE
+}
+
+enum DocumentType {
+  DRIVER_LICENSE
+  VEHICLE_REGISTRATION
+  INSURANCE
+  VEHICLE_PHOTO
+  PROFILE_PHOTO
+  NATIONAL_ID
+}
+
+enum DocumentStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum TripStatus {
+  REQUESTED
+  SEARCHING
+  ACCEPTED
+  DRIVER_ARRIVED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED_BY_CUSTOMER
+  CANCELLED_BY_DRIVER
+  NO_DRIVERS_AVAILABLE
+}
+
+enum PaymentMethod {
+  CASH
+  CREDIT_CARD
+  DEBIT_CARD
+  PAYHERE
+  STRIPE
+  WALLET
+}
+
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
+}
+
+enum NotificationType {
+  RIDE_REQUEST
+  RIDE_ACCEPTED
+  RIDE_CANCELLED
+  DRIVER_ARRIVED
+  TRIP_STARTED
+  TRIP_COMPLETED
+  PAYMENT_RECEIVED
+  PAYMENT_SUCCESSFUL
+  ASSOCIATION_ANNOUNCEMENT
+  DOCUMENT_APPROVED
+  DOCUMENT_REJECTED
+  SYSTEM
+}
+
+enum WalletOwnerType {
+  DRIVER
+  CUSTOMER
+}
+
+enum TransactionType {
+  CREDIT
+  DEBIT
+}
+
+enum TransactionReason {
+  TRIP_EARNING
+  TRIP_PAYMENT
+  WITHDRAWAL
+  TOPUP
+  REFUND
+  COMMISSION
+  PROMO_REWARD
+  MEMBERSHIP_FEE
+}
+
+enum TransactionStatus {
+  PENDING
+  COMPLETED
+  FAILED
+}
+
+enum OtpPurpose {
+  LOGIN
+  REGISTER
+  RESET_PASSWORD
+}
+
+enum DevicePlatform {
+  WEB
+  ANDROID
+  IOS
+}
+
+enum DiscountType {
+  PERCENT
+  FIXED
+}
+
+enum AnnouncementAudience {
+  ALL_MEMBERS
+  ALL_DRIVERS
+  ALL_CUSTOMERS
+}
+
+enum ComplaintStatus {
+  OPEN
+  IN_REVIEW
+  RESOLVED
+  DISMISSED
+}
+
+// ============================================================
+// IDENTITY
+// ============================================================
+
+model User {
+  id              String    @id @default(cuid())
+  email           String?   @unique
+  phone           String?   @unique
+  passwordHash    String?
+  role            Role
+  name            String
+  avatarUrl       String?
+  locale          Locale    @default(EN)
+  isActive        Boolean   @default(true)
+  emailVerifiedAt DateTime?
+  phoneVerifiedAt DateTime?
+  lastLoginAt     DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  driverProfile      Driver?
+  customerProfile    Customer?
+  associationAdminOf Association[] @relation("AssociationAdmins")
+
+  notifications   Notification[]
+  deviceTokens    DeviceToken[]
+  otpCodes        OtpCode[]
+  auditLogs       AuditLog[]     @relation("AuditActor")
+  sentMessages    ChatMessage[]  @relation("MessageSender")
+  ratingsGiven    Rating[]       @relation("RatingFrom")
+  ratingsReceived Rating[]       @relation("RatingTo")
+
+  @@index([role])
+}
+
+model OtpCode {
+  id          String     @id @default(cuid())
+  userId      String?
+  user        User?      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  destination String // phone number or email the code was sent to
+  codeHash    String
+  purpose     OtpPurpose
+  attempts    Int        @default(0)
+  expiresAt   DateTime
+  consumedAt  DateTime?
+  createdAt   DateTime   @default(now())
+
+  @@index([destination, purpose])
+}
+
+model DeviceToken {
+  id        String         @id @default(cuid())
+  userId    String
+  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token     String         @unique
+  platform  DevicePlatform
+  createdAt DateTime       @default(now())
+
+  @@index([userId])
+}
+
+// ============================================================
+// ASSOCIATIONS
+// ============================================================
+
+model Association {
+  id                String            @id @default(cuid())
+  name              String
+  slug              String            @unique
+  district          String
+  address           String?
+  contactPhone      String?
+  contactEmail      String?
+  description       String?
+  logoUrl           String?
+  status            AssociationStatus @default(PENDING)
+  commissionPercent Decimal           @default(10) @db.Decimal(5, 2)
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  admins         User[]          @relation("AssociationAdmins")
+  drivers        Driver[]
+  trips          Trip[]
+  pricingRules   PricingRule[]
+  announcements  Announcement[]
+  events         Event[]
+  complaints     Complaint[]
+  membershipFees MembershipFee[]
+
+  @@index([status])
+}
+
+model PricingRule {
+  id              String       @id @default(cuid())
+  associationId   String?
+  association     Association? @relation(fields: [associationId], references: [id], onDelete: Cascade)
+  vehicleType     VehicleType
+  baseFare        Decimal      @db.Decimal(10, 2)
+  perKmRate       Decimal      @db.Decimal(10, 2)
+  perMinuteRate   Decimal      @db.Decimal(10, 2)
+  minimumFare     Decimal      @db.Decimal(10, 2)
+  surgeMultiplier Decimal      @default(1) @db.Decimal(4, 2)
+  currency        String       @default("LKR")
+  isActive        Boolean      @default(true)
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  @@unique([associationId, vehicleType])
+}
+
+model Announcement {
+  id            String               @id @default(cuid())
+  associationId String
+  association   Association          @relation(fields: [associationId], references: [id], onDelete: Cascade)
+  title         String
+  body          String
+  audience      AnnouncementAudience @default(ALL_MEMBERS)
+  createdAt     DateTime             @default(now())
+
+  @@index([associationId])
+}
+
+model Event {
+  id            String      @id @default(cuid())
+  associationId String
+  association   Association @relation(fields: [associationId], references: [id], onDelete: Cascade)
+  title         String
+  description   String?
+  location      String?
+  startsAt      DateTime
+  createdAt     DateTime    @default(now())
+
+  @@index([associationId])
+}
+
+model MembershipFee {
+  id            String      @id @default(cuid())
+  associationId String
+  association   Association @relation(fields: [associationId], references: [id], onDelete: Cascade)
+  driverId      String
+  driver        Driver      @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  amount        Decimal     @db.Decimal(10, 2)
+  periodMonth   Int
+  periodYear    Int
+  paidAt        DateTime?
+  createdAt     DateTime    @default(now())
+
+  @@unique([driverId, periodMonth, periodYear])
+}
+
+model Complaint {
+  id            String          @id @default(cuid())
+  associationId String
+  association   Association     @relation(fields: [associationId], references: [id], onDelete: Cascade)
+  driverId      String?
+  driver        Driver?         @relation(fields: [driverId], references: [id], onDelete: SetNull)
+  subject       String
+  body          String
+  status        ComplaintStatus @default(OPEN)
+  createdAt     DateTime        @default(now())
+  resolvedAt    DateTime?
+
+  @@index([associationId, status])
+}
+
+// ============================================================
+// DRIVERS & VEHICLES
+// ============================================================
+
+model Driver {
+  id              String       @id @default(cuid())
+  userId          String       @unique
+  user            User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  associationId   String
+  association     Association  @relation(fields: [associationId], references: [id])
+  licenseNumber   String       @unique
+  licenseExpiry   DateTime
+  status          DriverStatus @default(PENDING)
+  isOnline        Boolean      @default(false)
+  currentLat      Float?
+  currentLng      Float?
+  lastLocationAt  DateTime?
+  ratingAvg       Decimal      @default(5) @db.Decimal(3, 2)
+  totalTrips      Int          @default(0)
+  approvedAt      DateTime?
+  approvedById    String?
+  rejectionReason String?
+  joinedAt        DateTime     @default(now())
+
+  vehicles       Vehicle[]
+  documents      Document[]
+  trips          Trip[]
+  wallet         Wallet?
+  membershipFees MembershipFee[]
+  complaints     Complaint[]
+
+  @@index([associationId, status])
+  @@index([isOnline])
+}
+
+model Vehicle {
+  id              String      @id @default(cuid())
+  driverId        String
+  driver          Driver      @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  type            VehicleType
+  make            String
+  model           String
+  year            Int
+  plateNumber     String      @unique
+  color           String
+  capacity        Int
+  photoUrls       String[]
+  insuranceExpiry DateTime
+  isActive        Boolean     @default(true)
+  createdAt       DateTime    @default(now())
+
+  trips Trip[]
+
+  @@index([driverId])
+  @@index([type])
+}
+
+model Document {
+  id              String         @id @default(cuid())
+  driverId        String
+  driver          Driver         @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  type            DocumentType
+  fileUrl         String
+  status          DocumentStatus @default(PENDING)
+  rejectionReason String?
+  uploadedAt      DateTime       @default(now())
+  reviewedAt      DateTime?
+  reviewedById    String?
+
+  @@index([driverId, type])
+}
+
+// ============================================================
+// CUSTOMERS
+// ============================================================
+
+model Customer {
+  id                   String        @id @default(cuid())
+  userId               String        @unique
+  user                 User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  defaultPaymentMethod PaymentMethod @default(CASH)
+  favoriteDriverId     String?
+  referralCode         String        @unique @default(cuid())
+  createdAt            DateTime      @default(now())
+
+  savedAddresses SavedAddress[]
+  trips          Trip[]
+  wallet         Wallet?
+  referralsMade  Referral[]     @relation("Referrer")
+  referralsUsed  Referral?      @relation("Referee")
+
+  @@index([userId])
+}
+
+model SavedAddress {
+  id         String   @id @default(cuid())
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  label      String
+  address    String
+  lat        Float
+  lng        Float
+  isFavorite Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  @@index([customerId])
+}
+
+model Referral {
+  id              String    @id @default(cuid())
+  referrerId      String
+  referrer        Customer  @relation("Referrer", fields: [referrerId], references: [id], onDelete: Cascade)
+  refereeId       String    @unique
+  referee         Customer  @relation("Referee", fields: [refereeId], references: [id], onDelete: Cascade)
+  rewardAmount    Decimal   @db.Decimal(10, 2)
+  rewardGrantedAt DateTime?
+  createdAt       DateTime  @default(now())
+}
+
+model PromoCode {
+  id           String       @id @default(cuid())
+  code         String       @unique
+  discountType DiscountType
+  value        Decimal      @db.Decimal(10, 2)
+  maxDiscount  Decimal?     @db.Decimal(10, 2)
+  usageLimit   Int?
+  usedCount    Int          @default(0)
+  expiresAt    DateTime?
+  isActive     Boolean      @default(true)
+  createdAt    DateTime     @default(now())
+
+  trips Trip[]
+}
+
+// ============================================================
+// TRIPS
+// ============================================================
+
+model Trip {
+  id            String       @id @default(cuid())
+  customerId    String
+  customer      Customer     @relation(fields: [customerId], references: [id])
+  driverId      String?
+  driver        Driver?      @relation(fields: [driverId], references: [id])
+  vehicleId     String?
+  vehicle       Vehicle?     @relation(fields: [vehicleId], references: [id])
+  associationId String?
+  association   Association? @relation(fields: [associationId], references: [id])
+  vehicleType   VehicleType
+
+  pickupAddress  String
+  pickupLat      Float
+  pickupLng      Float
+  dropoffAddress String
+  dropoffLat     Float
+  dropoffLng     Float
+  distanceKm     Decimal  @db.Decimal(8, 2)
+  durationMin    Int
+  estimatedFare  Decimal  @db.Decimal(10, 2)
+  finalFare      Decimal? @db.Decimal(10, 2)
+  currency       String   @default("LKR")
+
+  status             TripStatus    @default(REQUESTED)
+  paymentMethod      PaymentMethod @default(CASH)
+  paymentStatus      PaymentStatus @default(PENDING)
+  cancellationReason String?
+  scheduledAt        DateTime?
+  isSharedRide       Boolean       @default(false)
+  sosTriggered       Boolean       @default(false)
+
+  promoCodeId String?
+  promoCode   PromoCode? @relation(fields: [promoCodeId], references: [id])
+
+  requestedAt DateTime  @default(now())
+  acceptedAt  DateTime?
+  arrivedAt   DateTime?
+  startedAt   DateTime?
+  completedAt DateTime?
+  cancelledAt DateTime?
+
+  statusEvents TripStatusEvent[]
+  payments     Payment[]
+  ratings      Rating[]
+  chatMessages ChatMessage[]
+  transactions Transaction[]
+
+  @@index([customerId])
+  @@index([driverId])
+  @@index([status])
+  @@index([requestedAt])
+}
+
+model TripStatusEvent {
+  id        String     @id @default(cuid())
+  tripId    String
+  trip      Trip       @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  status    TripStatus
+  note      String?
+  createdAt DateTime   @default(now())
+
+  @@index([tripId])
+}
+
+model ChatMessage {
+  id        String   @id @default(cuid())
+  tripId    String
+  trip      Trip     @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  senderId  String
+  sender    User     @relation("MessageSender", fields: [senderId], references: [id])
+  message   String
+  createdAt DateTime @default(now())
+
+  @@index([tripId])
+}
+
+model Rating {
+  id         String   @id @default(cuid())
+  tripId     String
+  trip       Trip     @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  fromUserId String
+  fromUser   User     @relation("RatingFrom", fields: [fromUserId], references: [id])
+  toUserId   String
+  toUser     User     @relation("RatingTo", fields: [toUserId], references: [id])
+  stars      Int
+  comment    String?
+  createdAt  DateTime @default(now())
+
+  @@unique([tripId, fromUserId])
+  @@index([toUserId])
+}
+
+// ============================================================
+// PAYMENTS & WALLETS
+// ============================================================
+
+model Payment {
+  id          String        @id @default(cuid())
+  tripId      String
+  trip        Trip          @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  amount      Decimal       @db.Decimal(10, 2)
+  method      PaymentMethod
+  status      PaymentStatus @default(PENDING)
+  provider    String?
+  providerRef String?
+  paidAt      DateTime?
+  createdAt   DateTime      @default(now())
+
+  @@index([tripId])
+  @@index([status])
+}
+
+model Wallet {
+  id         String          @id @default(cuid())
+  ownerType  WalletOwnerType
+  driverId   String?         @unique
+  driver     Driver?         @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  customerId String?         @unique
+  customer   Customer?       @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  balance    Decimal         @default(0) @db.Decimal(12, 2)
+  currency   String          @default("LKR")
+  updatedAt  DateTime        @updatedAt
+  createdAt  DateTime        @default(now())
+
+  transactions Transaction[]
+}
+
+model Transaction {
+  id        String            @id @default(cuid())
+  walletId  String
+  wallet    Wallet            @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  tripId    String?
+  trip      Trip?             @relation(fields: [tripId], references: [id])
+  type      TransactionType
+  reason    TransactionReason
+  amount    Decimal           @db.Decimal(12, 2)
+  status    TransactionStatus @default(COMPLETED)
+  createdAt DateTime          @default(now())
+
+  @@index([walletId])
+  @@index([tripId])
+}
+
+// ============================================================
+// NOTIFICATIONS & AUDIT
+// ============================================================
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      NotificationType
+  title     String
+  body      String
+  data      Json?
+  isRead    Boolean          @default(false)
+  createdAt DateTime         @default(now())
+
+  @@index([userId, isRead])
+}
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  actorUserId String?
+  actor       User?    @relation("AuditActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+  action      String
+  entityType  String
+  entityId    String?
+  metadata    Json?
+  ipAddress   String?
+  createdAt   DateTime @default(now())
+
+  @@index([entityType, entityId])
+  @@index([actorUserId])
+}

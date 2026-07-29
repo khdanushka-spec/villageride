@@ -1,0 +1,12 @@
+{
+  "name": "VillageRide Sri Lanka",
+  "short_name": "VillageRide",
+  "description": "Book a taxi, three-wheeler, van, or lorry from your local village taxi association.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#fafaf8",
+  "theme_color": "#0f766e",
+  "icons": [
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}
