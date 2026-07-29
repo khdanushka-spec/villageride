@@ -48,8 +48,15 @@ async function main() {
   console.log("Seeding super admin account...");
   const adminEmail = "admin@villageride.lk";
   const existingAdmin = await prisma.user.findUnique({ where: { email: adminEmail } });
+
+  // Set to force a (re)set of the super admin password on this deploy only —
+  // e.g. when the account already exists but its password was never
+  // recorded. Remove after use so future deploys don't clobber a password
+  // the account owner has since changed.
+  const forcedPassword = process.env.SEED_RESET_ADMIN_PASSWORD;
+
   if (!existingAdmin) {
-    const password = crypto.randomBytes(9).toString("base64url");
+    const password = forcedPassword || crypto.randomBytes(9).toString("base64url");
     await prisma.user.create({
       data: {
         email: adminEmail,
@@ -64,6 +71,16 @@ async function main() {
     console.log(`  email:    ${adminEmail}`);
     console.log(`  password: ${password}`);
     console.log("Save this now — it will not be shown again.");
+    console.log("============================================\n");
+  } else if (forcedPassword) {
+    await prisma.user.update({
+      where: { id: existingAdmin.id },
+      data: { passwordHash: await bcrypt.hash(forcedPassword, 12) },
+    });
+    console.log("\n============================================");
+    console.log("Super admin password reset:");
+    console.log(`  email:    ${adminEmail}`);
+    console.log(`  password: ${forcedPassword}`);
     console.log("============================================\n");
   } else {
     console.log("Super admin already exists, skipping.");

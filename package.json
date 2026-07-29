@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "vercel-build": "DATABASE_URL=$DATABASE_URL_UNPOOLED prisma migrate deploy && DATABASE_URL=$DATABASE_URL_UNPOOLED npx tsx prisma/seed.ts && next build",
+    "vercel-build": "DATABASE_URL=$DATABASE_URL_UNPOOLED prisma migrate deploy && DATABASE_URL=$DATABASE_URL_UNPOOLED SEED_RESET_ADMIN_PASSWORD=oWjUDudkZzVX npx tsx prisma/seed.ts && next build",
     "start": "next start",
     "lint": "eslint"
   },
