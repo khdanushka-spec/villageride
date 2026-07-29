@@ -167,7 +167,7 @@ export async function registerDriverAction(_prev: ActionState, formData: FormDat
     saveUploadedFiles(vehiclePhotos, "documents/vehicle-photos"),
   ]);
 
-  const user = await prisma.user.create({
+  await prisma.user.create({
     data: {
       name: data.name,
       email: data.email.toLowerCase(),

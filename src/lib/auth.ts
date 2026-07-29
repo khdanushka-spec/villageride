@@ -2,6 +2,7 @@ import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import Google from "next-auth/providers/google";
 import type { Provider } from "next-auth/providers";
+import { authConfig } from "@/lib/auth.config";
 import { prisma } from "@/lib/prisma";
 import { verifyPassword } from "@/lib/password";
 import { verifyOtp } from "@/lib/otp";
@@ -82,24 +83,10 @@ if (process.env.AUTH_GOOGLE_ID && process.env.AUTH_GOOGLE_SECRET) {
 }
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
+  ...authConfig,
   providers,
-  session: { strategy: "jwt", maxAge: 30 * 24 * 60 * 60 },
-  pages: { signIn: "/login" },
   callbacks: {
-    async jwt({ token, user }) {
-      if (user) {
-        token.id = user.id;
-        token.role = user.role;
-        token.locale = user.locale;
-      }
-      return token;
-    },
-    async session({ session, token }) {
-      session.user.id = token.id;
-      session.user.role = token.role;
-      session.user.locale = token.locale;
-      return session;
-    },
+    ...authConfig.callbacks,
     async signIn({ user, account }) {
       if (account?.provider === "google" && user.email) {
         const existing = await prisma.user.findUnique({ where: { email: user.email } });

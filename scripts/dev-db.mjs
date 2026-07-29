@@ -28,7 +28,7 @@ async function main() {
   try {
     await pg.createDatabase("villageride");
     console.log("[dev-db] created database villageride");
-  } catch (err) {
+  } catch {
     console.log("[dev-db] database villageride already exists");
   }
 
