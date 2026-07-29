@@ -13,16 +13,6 @@ export default auth((req) => {
     return NextResponse.next();
   }
 
-  console.log(
-    "[middleware-debug]",
-    JSON.stringify({
-      pathname,
-      hasSession: !!session?.user,
-      cookieHeader: req.headers.get("cookie"),
-      cookieNames: req.cookies.getAll().map((c) => c.name),
-    })
-  );
-
   if (!session?.user) {
     const loginUrl = new URL("/login", req.url);
     loginUrl.searchParams.set("callbackUrl", pathname);
