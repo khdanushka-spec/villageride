@@ -6,9 +6,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { loginWithEmailAction, type ActionState } from "@/actions/auth";
+import { useActionRedirect } from "@/hooks/use-action-redirect";
 
 export function EmailLoginForm() {
   const [state, formAction, pending] = useActionState<ActionState, FormData>(loginWithEmailAction, undefined);
+  useActionRedirect(state?.redirectTo);
 
   return (
     <form action={formAction} className="space-y-4">

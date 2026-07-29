@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { requestPhoneOtpAction, verifyPhoneOtpAction, type ActionState } from "@/actions/auth";
+import { useActionRedirect } from "@/hooks/use-action-redirect";
 
 export function PhoneOtpForm({ intent }: { intent: "login" | "register" }) {
   const [phone, setPhone] = useState("");
@@ -28,6 +29,7 @@ export function PhoneOtpForm({ intent }: { intent: "login" | "register" }) {
     verifyPhoneOtpAction,
     undefined
   );
+  useActionRedirect(verifyState?.redirectTo);
 
   if (!codeSent) {
     return (

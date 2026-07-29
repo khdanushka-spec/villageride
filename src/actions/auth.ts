@@ -11,7 +11,7 @@ import { normalizeSriLankanPhone } from "@/lib/phone";
 import { ROLE_HOME } from "@/lib/rbac";
 import type { VehicleType } from "@prisma/client";
 
-export type ActionState = { error?: string; success?: string } | undefined;
+export type ActionState = { error?: string; success?: string; redirectTo?: string } | undefined;
 
 // ---------------------------------------------------------------------------
 // Email + password
@@ -30,7 +30,7 @@ export async function loginWithEmailAction(_prev: ActionState, formData: FormDat
   if (result?.error) return { error: "Invalid email or password." };
 
   const user = await prisma.user.findUnique({ where: { email: parsed.data.email.toLowerCase() } });
-  redirect(user ? ROLE_HOME[user.role] : "/");
+  return { redirectTo: user ? ROLE_HOME[user.role] : "/" };
 }
 
 const customerRegisterSchema = z.object({
@@ -63,7 +63,7 @@ export async function registerCustomerWithEmailAction(
   const result = await signIn("credentials", { email: email.toLowerCase(), password, redirect: false });
   if (result?.error) return { error: "Account created, but sign-in failed. Try logging in." };
 
-  redirect(ROLE_HOME.CUSTOMER);
+  return { redirectTo: ROLE_HOME.CUSTOMER };
 }
 
 // ---------------------------------------------------------------------------
@@ -112,7 +112,7 @@ export async function verifyPhoneOtpAction(
   if (result?.error) return { error: "Invalid or expired code." };
 
   const user = await prisma.user.findUnique({ where: { phone } });
-  redirect(user ? ROLE_HOME[user.role] : "/");
+  return { redirectTo: user ? ROLE_HOME[user.role] : "/" };
 }
 
 // ---------------------------------------------------------------------------
@@ -210,7 +210,7 @@ export async function registerDriverAction(_prev: ActionState, formData: FormDat
   const result = await signIn("credentials", { email: data.email.toLowerCase(), password: data.password, redirect: false });
   if (result?.error) return { error: "Registration submitted, but sign-in failed. Try logging in." };
 
-  redirect(ROLE_HOME.DRIVER);
+  return { redirectTo: ROLE_HOME.DRIVER };
 }
 
 export async function logoutAction() {

@@ -7,12 +7,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { registerDriverAction, type ActionState } from "@/actions/auth";
+import { useActionRedirect } from "@/hooks/use-action-redirect";
 import { VEHICLE_TYPE_LABELS, VEHICLE_TYPES } from "@/lib/vehicle-types";
 
 type Association = { id: string; name: string; district: string };
 
 export function DriverRegisterForm({ associations }: { associations: Association[] }) {
   const [state, formAction, pending] = useActionState<ActionState, FormData>(registerDriverAction, undefined);
+  useActionRedirect(state?.redirectTo);
 
   return (
     <form action={formAction} className="space-y-8">

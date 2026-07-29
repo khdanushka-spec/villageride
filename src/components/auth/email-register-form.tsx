@@ -6,12 +6,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { registerCustomerWithEmailAction, type ActionState } from "@/actions/auth";
+import { useActionRedirect } from "@/hooks/use-action-redirect";
 
 export function EmailRegisterForm() {
   const [state, formAction, pending] = useActionState<ActionState, FormData>(
     registerCustomerWithEmailAction,
     undefined
   );
+  useActionRedirect(state?.redirectTo);
 
   return (
     <form action={formAction} className="space-y-4">
