@@ -2,6 +2,10 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { DriverRegisterForm } from "@/components/auth/driver-register-form";
 
+// Associations change over time (approved by super admin), so this page must
+// always read live data rather than be cached at build time.
+export const dynamic = "force-dynamic";
+
 export default async function DriverRegisterPage() {
   const associations = await prisma.association.findMany({
     where: { status: "ACTIVE" },

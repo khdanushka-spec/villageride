@@ -45,3 +45,6 @@ next-env.d.ts
 
 # user-uploaded files (local dev storage)
 /public/uploads
+
+.vercel
+.env*
