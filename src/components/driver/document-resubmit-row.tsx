@@ -54,6 +54,7 @@ export function DocumentResubmitRow({
   const [success, setSuccess] = useState(false);
 
   const needsExpiry = EXPIRING_DOCUMENT_TYPES.includes(type);
+  const needsIssueDate = type === "DRIVER_LICENSE";
 
   async function handleSubmit(formData: FormData) {
     setPending(true);
@@ -78,6 +79,8 @@ export function DocumentResubmitRow({
       payload.set("fileUrl", blob.url);
       const expiresAtValue = formData.get("expiresAt") as string;
       if (expiresAtValue) payload.set("expiresAt", expiresAtValue);
+      const licenceIssuedAtValue = formData.get("licenceIssuedAt") as string;
+      if (licenceIssuedAtValue) payload.set("licenceIssuedAt", licenceIssuedAtValue);
 
       const result = await resubmitDocumentAction(undefined, payload);
       if (result?.error) {
@@ -127,6 +130,14 @@ export function DocumentResubmitRow({
       {open && (
         <form action={handleSubmit} className="space-y-2 border-t border-border pt-2">
           <Input name="file" type="file" accept="image/*,.pdf" required />
+          {needsIssueDate && (
+            <div className="space-y-1">
+              <Label htmlFor={`issued-${type}`} className="text-xs">
+                Licence issue date
+              </Label>
+              <Input id={`issued-${type}`} name="licenceIssuedAt" type="date" required />
+            </div>
+          )}
           {needsExpiry && (
             <div className="space-y-1">
               <Label htmlFor={`expiry-${type}`} className="text-xs">

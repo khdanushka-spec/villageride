@@ -165,6 +165,16 @@ export async function resubmitDocumentAction(_prev: ActionState, formData: FormD
   }
   const expiresAt = expiresAtRaw ? new Date(expiresAtRaw) : undefined;
 
+  // The "held a licence for at least N years" compliance check reads
+  // Driver.licenceIssuedAt directly, not the document's own expiry — a
+  // renewed licence with a far-future expiry date still trips that block
+  // forever unless the issue date is updated too.
+  const licenceIssuedAtRaw = formData.get("licenceIssuedAt") as string;
+  if (type === "DRIVER_LICENSE" && !licenceIssuedAtRaw) {
+    return { error: "Enter the licence issue date." };
+  }
+  const licenceIssuedAt = licenceIssuedAtRaw ? new Date(licenceIssuedAtRaw) : undefined;
+
   const existing = await prisma.document.findFirst({ where: { driverId: driver.id, type } });
 
   if (existing) {
@@ -179,14 +189,23 @@ export async function resubmitDocumentAction(_prev: ActionState, formData: FormD
         uploadedAt: new Date(),
         ...(documentNumber ? { documentNumber } : {}),
         ...(expiresAt ? { expiresAt } : {}),
+        ...(licenceIssuedAt ? { issuedAt: licenceIssuedAt } : {}),
       },
     });
   } else {
-    await prisma.document.create({ data: { driverId: driver.id, type, fileUrl, documentNumber, expiresAt } });
+    await prisma.document.create({
+      data: { driverId: driver.id, type, fileUrl, documentNumber, expiresAt, issuedAt: licenceIssuedAt },
+    });
   }
 
-  if (expiresAt && type === "DRIVER_LICENSE") {
-    await prisma.driver.update({ where: { id: driver.id }, data: { licenseExpiry: expiresAt } });
+  if (type === "DRIVER_LICENSE") {
+    await prisma.driver.update({
+      where: { id: driver.id },
+      data: {
+        ...(expiresAt ? { licenseExpiry: expiresAt } : {}),
+        ...(licenceIssuedAt ? { licenceIssuedAt } : {}),
+      },
+    });
   }
   const vehicleField = VEHICLE_EXPIRY_FIELD[type];
   if (expiresAt && vehicleField && driver.vehicles[0]) {
