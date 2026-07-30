@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useActionState } from "react";
+import { upload } from "@vercel/blob/client";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,8 +18,66 @@ import type { VehicleType } from "@prisma/client";
 
 type Association = { id: string; name: string; district: string };
 
+// Uploaded straight from the browser to Blob (see /api/driver-documents/upload)
+// before the form ever reaches the server action — a dozen real document
+// photos in one request body would otherwise exceed the Server Action size
+// limit. Field name -> destination folder.
+const DOCUMENT_FIELDS: Record<string, string> = {
+  licensePhoto: "documents/license",
+  nicPhoto: "documents/nic",
+  vehicleRegPhoto: "documents/vehicle-registration",
+  insurancePhoto: "documents/insurance",
+  revenueLicencePhoto: "documents/revenue-licence",
+  emissionTestPhoto: "documents/emission-test",
+  policeClearancePhoto: "documents/police-clearance",
+  gramaNiladhariPhoto: "documents/grama-niladhari",
+  medicalCertPhoto: "documents/medical",
+  fitnessCertPhoto: "documents/fitness",
+  profilePhoto: "documents/profile",
+};
+
+function extensionOf(filename: string): string {
+  const dot = filename.lastIndexOf(".");
+  return dot >= 0 ? filename.slice(dot) : "";
+}
+
+async function uploadDocument(file: File, folder: string): Promise<string> {
+  const blob = await upload(`${folder}/${crypto.randomUUID()}${extensionOf(file.name)}`, file, {
+    access: "public",
+    handleUploadUrl: "/api/driver-documents/upload",
+  });
+  return blob.url;
+}
+
 export function DriverRegisterForm({ associations }: { associations: Association[] }) {
-  const [state, formAction, pending] = useActionState<ActionState, FormData>(registerDriverAction, undefined);
+  const [uploading, setUploading] = useState(false);
+
+  const [state, formAction, pending] = useActionState<ActionState, FormData>(async (prev, formData) => {
+    setUploading(true);
+    try {
+      for (const [field, folder] of Object.entries(DOCUMENT_FIELDS)) {
+        const file = formData.get(field);
+        if (file instanceof File && file.size > 0) {
+          formData.set(field, await uploadDocument(file, folder));
+        } else {
+          formData.delete(field);
+        }
+      }
+
+      const vehiclePhotoFiles = formData
+        .getAll("vehiclePhotos")
+        .filter((f): f is File => f instanceof File && f.size > 0);
+      formData.delete("vehiclePhotos");
+      for (const file of vehiclePhotoFiles) {
+        formData.append("vehiclePhotos", await uploadDocument(file, "documents/vehicle-photos"));
+      }
+    } catch (err) {
+      setUploading(false);
+      return { error: err instanceof Error ? `Upload failed: ${err.message}` : "Upload failed. Please try again." };
+    }
+    setUploading(false);
+    return registerDriverAction(prev, formData);
+  }, undefined);
   useActionRedirect(state?.redirectTo);
 
   const [vehicleType, setVehicleType] = useState<VehicleType | "">("");
@@ -336,9 +395,9 @@ export function DriverRegisterForm({ associations }: { associations: Association
 
       {state?.error && <p className="text-sm text-destructive">{state.error}</p>}
 
-      <Button type="submit" className="w-full" size="lg" disabled={pending}>
-        {pending && <Loader2 className="h-4 w-4 animate-spin" />}
-        Submit for association approval
+      <Button type="submit" className="w-full" size="lg" disabled={pending || uploading}>
+        {(pending || uploading) && <Loader2 className="h-4 w-4 animate-spin" />}
+        {uploading ? "Uploading documents…" : "Submit for association approval"}
       </Button>
     </form>
   );

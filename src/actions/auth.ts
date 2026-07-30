@@ -7,7 +7,7 @@ import { signIn, signOut } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { hashPassword } from "@/lib/password";
 import { requestOtp } from "@/lib/otp";
-import { saveUploadedFile, saveUploadedFiles } from "@/lib/storage";
+import { isTrustedBlobUrl } from "@/lib/storage";
 import { normalizeSriLankanPhone } from "@/lib/phone";
 import { ROLE_HOME } from "@/lib/rbac";
 import { SRI_LANKA_DISTRICTS, isValidNic } from "@/lib/districts";
@@ -246,71 +246,67 @@ export async function registerDriverAction(_prev: ActionState, formData: FormDat
   }
 
   // --- Document uploads ---
-  const files = {
-    licensePhoto: formData.get("licensePhoto") as File | null,
-    nicPhoto: formData.get("nicPhoto") as File | null,
-    vehicleRegPhoto: formData.get("vehicleRegPhoto") as File | null,
-    insurancePhoto: formData.get("insurancePhoto") as File | null,
-    revenueLicencePhoto: formData.get("revenueLicencePhoto") as File | null,
-    emissionTestPhoto: formData.get("emissionTestPhoto") as File | null,
-    policeClearancePhoto: formData.get("policeClearancePhoto") as File | null,
-    gramaNiladhariPhoto: formData.get("gramaNiladhariPhoto") as File | null,
-    medicalCertPhoto: formData.get("medicalCertPhoto") as File | null,
-    fitnessCertPhoto: formData.get("fitnessCertPhoto") as File | null,
-    profilePhoto: formData.get("profilePhoto") as File | null,
+  // Files are uploaded directly from the browser to Blob before this action
+  // runs (see driver-register-form.tsx + /api/driver-documents/upload) —
+  // Server Actions have a request body size limit that a dozen real
+  // phone-camera photos blow past easily. What arrives here is already-
+  // uploaded URLs, which still need confirming they actually point at our
+  // own Blob store rather than being taken on faith from an unauthenticated
+  // caller.
+  const urlField = (name: string): string | null => {
+    const value = formData.get(name);
+    return typeof value === "string" && value && isTrustedBlobUrl(value) ? value : null;
   };
-  const vehiclePhotos = formData.getAll("vehiclePhotos").filter((f): f is File => f instanceof File && f.size > 0);
+  const urls = {
+    licensePhoto: urlField("licensePhoto"),
+    nicPhoto: urlField("nicPhoto"),
+    vehicleRegPhoto: urlField("vehicleRegPhoto"),
+    insurancePhoto: urlField("insurancePhoto"),
+    revenueLicencePhoto: urlField("revenueLicencePhoto"),
+    emissionTestPhoto: urlField("emissionTestPhoto"),
+    policeClearancePhoto: urlField("policeClearancePhoto"),
+    gramaNiladhariPhoto: urlField("gramaNiladhariPhoto"),
+    medicalCertPhoto: urlField("medicalCertPhoto"),
+    fitnessCertPhoto: urlField("fitnessCertPhoto"),
+    profilePhoto: urlField("profilePhoto"),
+  };
+  const photoUrls = formData
+    .getAll("vehiclePhotos")
+    .filter((v): v is string => typeof v === "string" && v.length > 0 && isTrustedBlobUrl(v));
 
   const missing: string[] = [];
-  if (!files.licensePhoto?.size) missing.push(DOCUMENT_TYPE_LABELS.DRIVER_LICENSE);
-  if (!files.nicPhoto?.size) missing.push(DOCUMENT_TYPE_LABELS.NATIONAL_ID);
-  if (!files.vehicleRegPhoto?.size) missing.push(DOCUMENT_TYPE_LABELS.VEHICLE_REGISTRATION);
-  if (!files.insurancePhoto?.size) missing.push(DOCUMENT_TYPE_LABELS.INSURANCE);
-  if (rules.requireRevenueLicence && !files.revenueLicencePhoto?.size) missing.push(DOCUMENT_TYPE_LABELS.REVENUE_LICENCE);
-  if (rules.requireEmissionTest && !data.emissionTestExempt && !files.emissionTestPhoto?.size) {
+  if (!urls.licensePhoto) missing.push(DOCUMENT_TYPE_LABELS.DRIVER_LICENSE);
+  if (!urls.nicPhoto) missing.push(DOCUMENT_TYPE_LABELS.NATIONAL_ID);
+  if (!urls.vehicleRegPhoto) missing.push(DOCUMENT_TYPE_LABELS.VEHICLE_REGISTRATION);
+  if (!urls.insurancePhoto) missing.push(DOCUMENT_TYPE_LABELS.INSURANCE);
+  if (rules.requireRevenueLicence && !urls.revenueLicencePhoto) missing.push(DOCUMENT_TYPE_LABELS.REVENUE_LICENCE);
+  if (rules.requireEmissionTest && !data.emissionTestExempt && !urls.emissionTestPhoto) {
     missing.push(DOCUMENT_TYPE_LABELS.VEHICLE_EMISSION_TEST);
   }
-  if (rules.requirePoliceClearance && !files.policeClearancePhoto?.size) missing.push(DOCUMENT_TYPE_LABELS.POLICE_CLEARANCE);
-  if (rules.requireGramaNiladhari && !files.gramaNiladhariPhoto?.size) {
+  if (rules.requirePoliceClearance && !urls.policeClearancePhoto) missing.push(DOCUMENT_TYPE_LABELS.POLICE_CLEARANCE);
+  if (rules.requireGramaNiladhari && !urls.gramaNiladhariPhoto) {
     missing.push(DOCUMENT_TYPE_LABELS.GRAMA_NILADHARI_CERTIFICATE);
   }
-  if (rules.requireMedicalCert && !files.medicalCertPhoto?.size) missing.push(DOCUMENT_TYPE_LABELS.MEDICAL_CERTIFICATE);
-  if (needsFitnessCert && !files.fitnessCertPhoto?.size) missing.push(DOCUMENT_TYPE_LABELS.VEHICLE_FITNESS_CERTIFICATE);
+  if (rules.requireMedicalCert && !urls.medicalCertPhoto) missing.push(DOCUMENT_TYPE_LABELS.MEDICAL_CERTIFICATE);
+  if (needsFitnessCert && !urls.fitnessCertPhoto) missing.push(DOCUMENT_TYPE_LABELS.VEHICLE_FITNESS_CERTIFICATE);
 
   if (missing.length) {
     return { error: `Please upload: ${missing.join(", ")}.` };
   }
 
-  const upload = (file: File | null, folder: string) =>
-    file?.size ? saveUploadedFile(file, folder) : Promise.resolve(null);
-
-  const [
-    licenseUrl,
-    nicUrl,
-    vehicleRegUrl,
-    insuranceUrl,
-    revenueLicenceUrl,
-    emissionTestUrl,
-    policeClearanceUrl,
-    gramaNiladhariUrl,
-    medicalCertUrl,
-    fitnessCertUrl,
-    profileUrl,
-    photoUrls,
-  ] = await Promise.all([
-    upload(files.licensePhoto, "documents/license"),
-    upload(files.nicPhoto, "documents/nic"),
-    upload(files.vehicleRegPhoto, "documents/vehicle-registration"),
-    upload(files.insurancePhoto, "documents/insurance"),
-    upload(files.revenueLicencePhoto, "documents/revenue-licence"),
-    upload(files.emissionTestPhoto, "documents/emission-test"),
-    upload(files.policeClearancePhoto, "documents/police-clearance"),
-    upload(files.gramaNiladhariPhoto, "documents/grama-niladhari"),
-    upload(files.medicalCertPhoto, "documents/medical"),
-    upload(files.fitnessCertPhoto, "documents/fitness"),
-    upload(files.profilePhoto, "documents/profile"),
-    saveUploadedFiles(vehiclePhotos, "documents/vehicle-photos"),
-  ]);
+  const {
+    licensePhoto: licenseUrl,
+    nicPhoto: nicUrl,
+    vehicleRegPhoto: vehicleRegUrl,
+    insurancePhoto: insuranceUrl,
+    revenueLicencePhoto: revenueLicenceUrl,
+    emissionTestPhoto: emissionTestUrl,
+    policeClearancePhoto: policeClearanceUrl,
+    gramaNiladhariPhoto: gramaNiladhariUrl,
+    medicalCertPhoto: medicalCertUrl,
+    fitnessCertPhoto: fitnessCertUrl,
+    profilePhoto: profileUrl,
+  } = urls;
 
   const optionalDate = (value: string | undefined) => (value ? new Date(value) : null);
 
