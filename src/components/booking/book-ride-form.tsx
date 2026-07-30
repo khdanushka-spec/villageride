@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { useActionState, useEffect, useState } from "react";
-import { Loader2, X } from "lucide-react";
+import { LocateFixed, Loader2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AddressSearch } from "@/components/booking/address-search";
 import type { LatLng } from "@/components/booking/location-map";
@@ -25,6 +25,8 @@ export function BookRideForm({ onRequested }: { onRequested: (tripId: string) =>
   const [estimatesLoading, setEstimatesLoading] = useState(false);
   const [vehicleType, setVehicleType] = useState<string | null>(null);
   const [paymentMethod, setPaymentMethod] = useState<"CASH" | "WALLET">("CASH");
+  const [locating, setLocating] = useState(false);
+  const [locateError, setLocateError] = useState<string | null>(null);
 
   const [state, formAction, pending] = useActionState<ActionState, FormData>(async (_prev, formData) => {
     const result = await requestTripAction(_prev, formData);
@@ -54,12 +56,45 @@ export function BookRideForm({ onRequested }: { onRequested: (tripId: string) =>
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pickup, dropoff]);
 
-  async function handleMapClick(lat: number, lng: number) {
+  async function reverseGeocode(lat: number, lng: number): Promise<string> {
     const res = await fetch(`/api/geocode?mode=reverse&lat=${lat}&lng=${lng}`);
     const data = await res.json();
-    const address = data?.display_name ?? `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+    return data?.display_name ?? `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+  }
+
+  async function handleMapClick(lat: number, lng: number) {
+    const address = await reverseGeocode(lat, lng);
     if (!pickup) setPickup({ lat, lng, address });
     else if (!dropoff) setDropoff({ lat, lng, address });
+  }
+
+  function handleUseCurrentLocation() {
+    if (!navigator.geolocation) {
+      setLocateError("Your browser doesn't support live location.");
+      return;
+    }
+    setLocating(true);
+    setLocateError(null);
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const { latitude: lat, longitude: lng } = pos.coords;
+        try {
+          const address = await reverseGeocode(lat, lng);
+          setPickup({ lat, lng, address });
+        } finally {
+          setLocating(false);
+        }
+      },
+      (err) => {
+        setLocating(false);
+        setLocateError(
+          err.code === err.PERMISSION_DENIED
+            ? "Location access was denied. Allow it in your browser settings, or search for your pickup instead."
+            : "Couldn't get your live location. Try again or search for your pickup instead."
+        );
+      },
+      { enableHighAccuracy: true, timeout: 10_000, maximumAge: 0 }
+    );
   }
 
   const selectedEstimate = estimates?.find((e) => e.vehicleType === vehicleType);
@@ -75,13 +110,27 @@ export function BookRideForm({ onRequested }: { onRequested: (tripId: string) =>
               value={pickup?.address ?? ""}
               onSelect={setPickup}
             />
-            {pickup && (
+            {pickup ? (
               <button
                 type="button"
                 onClick={() => setPickup(null)}
                 className="absolute right-2 top-7 text-muted-foreground hover:text-foreground"
               >
                 <X className="h-3.5 w-3.5" />
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={handleUseCurrentLocation}
+                disabled={locating}
+                title="Use my current location"
+                className="absolute right-2 top-7 text-muted-foreground hover:text-primary disabled:opacity-50"
+              >
+                {locating ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <LocateFixed className="h-3.5 w-3.5" />
+                )}
               </button>
             )}
           </div>
@@ -103,8 +152,10 @@ export function BookRideForm({ onRequested }: { onRequested: (tripId: string) =>
             )}
           </div>
         </div>
+        {locateError && <p className="text-xs text-destructive">{locateError}</p>}
         <p className="text-xs text-muted-foreground">
-          Tip: you can also click the map to drop a pin — pickup first, then destination.
+          Tip: tap <LocateFixed className="inline h-3 w-3 align-[-1px]" /> to use your live location for pickup, or
+          click the map to drop a pin.
         </p>
 
         <div>
