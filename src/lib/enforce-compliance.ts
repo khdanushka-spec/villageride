@@ -71,8 +71,9 @@ export async function reconcileDriverCompliance(
   }
 
   if (otherBlockers.length > 0) {
+    const reason = otherBlockers.map((b) => b.message).join(" ");
+
     if (driver.status !== "COMPLIANCE_HOLD") {
-      const reason = otherBlockers.map((b) => b.message).join(" ");
       await prisma.driver.update({
         where: { id: driverId },
         data: { status: "COMPLIANCE_HOLD", isOnline: false, complianceHoldAt: new Date(), complianceHoldReason: reason },
@@ -80,6 +81,15 @@ export async function reconcileDriverCompliance(
       await prisma.notification.create({
         data: { userId: driver.userId, type: "COMPLIANCE_HOLD", title: "You're on hold", body: reason },
       });
+      return { status: "COMPLIANCE_HOLD", changed: true, blockers: otherBlockers, warnings: result.warnings };
+    }
+
+    // Already on hold — the specific blocker can change over time (a licence
+    // issue gets fixed but a document is still pending review, say), so keep
+    // the stored reason in sync rather than leaving it frozen at whatever it
+    // said when the driver first went on hold.
+    if (reason !== driver.complianceHoldReason) {
+      await prisma.driver.update({ where: { id: driverId }, data: { complianceHoldReason: reason } });
       return { status: "COMPLIANCE_HOLD", changed: true, blockers: otherBlockers, warnings: result.warnings };
     }
     return { status: "COMPLIANCE_HOLD", changed: false, blockers: otherBlockers, warnings: result.warnings };
