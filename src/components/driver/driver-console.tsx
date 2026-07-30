@@ -17,13 +17,18 @@ export function DriverConsole({
   const [isOnline, setIsOnline] = useState(initialIsOnline);
   const [activeTripId, setActiveTripId] = useState(initialActiveTripId);
   const [toggling, setToggling] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   async function handleToggle(checked: boolean) {
     setToggling(true);
     setIsOnline(checked);
+    setError(null);
     const result = await toggleOnlineAction(checked);
     setToggling(false);
-    if (result?.error) setIsOnline(!checked);
+    if (result?.error) {
+      setIsOnline(!checked);
+      setError(result.error);
+    }
   }
 
   if (activeTripId) {
@@ -43,6 +48,8 @@ export function DriverConsole({
         </div>
         <Switch id="online-toggle" checked={isOnline} disabled={toggling} onCheckedChange={handleToggle} />
       </div>
+
+      {error && <p className="text-sm text-destructive">{error}</p>}
 
       {isOnline ? (
         <AvailableRidesList onAccepted={setActiveTripId} />

@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { estimateFareForVehicleType, toDecimal } from "@/lib/fare";
+import { reconcileDriverCompliance } from "@/lib/enforce-compliance";
 import type { TripStatus, VehicleType } from "@prisma/client";
 
 export type ActionState = { error?: string; success?: string } | undefined;
@@ -85,6 +86,8 @@ export async function cancelTripAction(tripId: string, reason: string): Promise<
     return { error: "This trip can no longer be cancelled." };
   }
 
+  const wasAcceptedByDriver = isDriver && trip.driverId && trip.status !== "REQUESTED" && trip.status !== "SEARCHING";
+
   await prisma.$transaction([
     prisma.trip.update({
       where: { id: tripId },
@@ -97,7 +100,16 @@ export async function cancelTripAction(tripId: string, reason: string): Promise<
     prisma.tripStatusEvent.create({
       data: { tripId, status: isCustomer ? "CANCELLED_BY_CUSTOMER" : "CANCELLED_BY_DRIVER", note: reason || null },
     }),
+    ...(wasAcceptedByDriver
+      ? [prisma.driver.update({ where: { id: trip.driverId! }, data: { cancelledTrips: { increment: 1 } } })]
+      : []),
   ]);
+
+  // A cancellation can push the driver's rate over the platform's threshold —
+  // check right away rather than waiting for them to next go online.
+  if (wasAcceptedByDriver) {
+    await reconcileDriverCompliance(trip.driverId!);
+  }
 
   revalidatePath("/dashboard/customer");
   revalidatePath("/dashboard/driver");
@@ -112,8 +124,13 @@ export async function acceptTripAction(tripId: string): Promise<ActionState> {
     where: { userId: session.user.id },
     include: { vehicles: { where: { isActive: true }, take: 1 } },
   });
-  if (!driver || driver.status !== "APPROVED") return { error: "Your driver account is not approved yet." };
+  if (!driver) return { error: "Driver profile not found." };
   if (!driver.isOnline) return { error: "Go online before accepting rides." };
+
+  const reconciled = await reconcileDriverCompliance(driver.id);
+  if (reconciled.status !== "APPROVED") {
+    return { error: reconciled.blockers[0]?.message ?? "Your account isn't eligible to accept rides right now." };
+  }
 
   const vehicle = driver.vehicles[0];
   if (!vehicle) return { error: "No active vehicle on file." };
@@ -130,6 +147,16 @@ export async function acceptTripAction(tripId: string): Promise<ActionState> {
   });
 
   if (result.count === 0) return { error: "This ride was already accepted by another driver." };
+
+  // "Offered" and "accepted" happen as a single action in this app's
+  // pull-based matching (drivers pull from a shared request list rather than
+  // being sent individual offers to accept/decline), so both counters move
+  // together here; cancelledTrips (below) then measures the metric that
+  // actually matters — how often a driver backs out after committing.
+  await prisma.driver.update({
+    where: { id: driver.id },
+    data: { offeredTrips: { increment: 1 }, acceptedTrips: { increment: 1 } },
+  });
 
   await prisma.tripStatusEvent.create({ data: { tripId, status: "ACCEPTED" } });
 
@@ -282,11 +309,16 @@ export async function rateTripAction(_prev: ActionState, formData: FormData): Pr
     const agg = await prisma.rating.aggregate({
       where: { toUserId },
       _avg: { stars: true },
+      _count: true,
     });
     await prisma.driver.update({
       where: { id: trip.driverId },
-      data: { ratingAvg: toDecimal(agg._avg.stars ?? 5) },
+      data: { ratingAvg: toDecimal(agg._avg.stars ?? 5), ratingCount: agg._count },
     });
+
+    // A new low rating can push the average below the platform's minimum —
+    // check right away rather than waiting for the driver to next go online.
+    await reconcileDriverCompliance(trip.driverId);
   }
 
   revalidatePath("/dashboard/customer");

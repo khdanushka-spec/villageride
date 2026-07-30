@@ -3,6 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { reconcileDriverCompliance } from "@/lib/enforce-compliance";
+import { DRIVER_STATUS_LABELS } from "@/lib/compliance";
 
 export async function toggleOnlineAction(isOnline: boolean) {
   const session = await auth();
@@ -10,9 +12,28 @@ export async function toggleOnlineAction(isOnline: boolean) {
 
   const driver = await prisma.driver.findUnique({ where: { userId: session.user.id } });
   if (!driver) return { error: "Driver profile not found." };
-  if (driver.status !== "APPROVED") return { error: "Your account is not approved yet." };
 
-  await prisma.driver.update({ where: { id: driver.id }, data: { isOnline } });
+  // Always allow going offline. Going online re-checks every regulatory and
+  // performance requirement first, so a lapsed document or a rating/
+  // cancellation-rate breach blocks it even if the driver was APPROVED the
+  // last time this ran.
+  if (!isOnline) {
+    await prisma.driver.update({ where: { id: driver.id }, data: { isOnline: false } });
+    revalidatePath("/dashboard/driver");
+    return { success: true };
+  }
+
+  const reconciled = await reconcileDriverCompliance(driver.id);
+  if (reconciled.status !== "APPROVED") {
+    revalidatePath("/dashboard/driver");
+    return {
+      error:
+        reconciled.blockers[0]?.message ??
+        `Your account isn't eligible right now (${DRIVER_STATUS_LABELS[reconciled.status]}).`,
+    };
+  }
+
+  await prisma.driver.update({ where: { id: driver.id }, data: { isOnline: true } });
   revalidatePath("/dashboard/driver");
   return { success: true };
 }
@@ -36,7 +57,13 @@ export async function getAvailableTripRequests() {
     where: { userId: session.user.id },
     include: { vehicles: { where: { isActive: true }, take: 1 } },
   });
-  if (!driver || !driver.isOnline || driver.status !== "APPROVED") return [];
+  if (!driver || !driver.isOnline) return [];
+
+  // A document can lapse or a performance threshold can be crossed while a
+  // driver is already online — catch it here so they stop being offered new
+  // trips the moment it happens, without waiting for a scheduled sweep.
+  const reconciled = await reconcileDriverCompliance(driver.id);
+  if (reconciled.status !== "APPROVED") return [];
 
   const vehicleType = driver.vehicles[0]?.type;
   if (!vehicleType) return [];
