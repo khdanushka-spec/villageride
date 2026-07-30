@@ -36,6 +36,15 @@ async function main() {
     }
   }
 
+  // Platform-wide driver qualification thresholds. Associations can override
+  // these with their own row; this global one (associationId: null) is the
+  // fallback. Same NULL-in-unique-index caveat as the pricing rules above.
+  console.log("Seeding global driver eligibility rules...");
+  const existingRule = await prisma.driverEligibilityRule.findFirst({ where: { associationId: null } });
+  if (!existingRule) {
+    await prisma.driverEligibilityRule.create({ data: { associationId: null } });
+  }
+
   console.log("Seeding village taxi associations...");
   for (const assoc of ASSOCIATIONS) {
     await prisma.association.upsert({

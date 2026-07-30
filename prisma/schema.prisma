@@ -34,10 +34,40 @@ enum AssociationStatus {
 }
 
 enum DriverStatus {
-  PENDING
+  PENDING // application started / documents incomplete
+  DOCUMENTS_UNDER_REVIEW // submitted, association is verifying documents
+  BACKGROUND_CHECK // documents verified, awaiting police clearance sign-off
   APPROVED
   REJECTED
-  SUSPENDED
+  SUSPENDED // manual suspension by association/admin
+  DEACTIVATED // performance-based removal (rating / cancellation thresholds)
+  COMPLIANCE_HOLD // a mandatory document lapsed — auto-blocked until renewed
+}
+
+enum BackgroundCheckStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  CLEARED
+  FAILED
+}
+
+/// Sri Lanka Department of Motor Traffic driving licence classes.
+/// Minimum age 18 for all classes; licences are valid 8 years and require
+/// theory + practical tests plus medical clearance.
+enum LicenceClass {
+  A1 // light motorcycle, up to 100cc
+  A // motorcycle above 100cc
+  B1 // motor tricycle (three-wheeler) / light van
+  B // dual purpose, up to 3,500kg and 9 seats
+  C1 // light lorry, 3,500–17,000kg
+  C // lorry above 17,000kg
+  CE // articulated vehicle / combination with trailer
+  D1 // 9–33 seats
+  D // bus, up to 33 seats
+  DE // heavy coach combination
+  G1 // hand tractor
+  G // tractor / agricultural vehicle
+  J // construction and loading equipment
 }
 
 enum VehicleType {
@@ -52,13 +82,24 @@ enum VehicleType {
   DELIVERY_VEHICLE
 }
 
+/// Documents collected at driver onboarding. The regulatory ones reflect what
+/// Sri Lankan law actually requires of a vehicle and driver operating for hire:
+/// a DMT driving licence, an annual revenue licence (which itself requires
+/// valid insurance and a Vehicle Emission Test certificate), plus identity and
+/// character checks via the NIC, Sri Lanka Police and the Grama Niladhari.
 enum DocumentType {
-  DRIVER_LICENSE
-  VEHICLE_REGISTRATION
-  INSURANCE
+  DRIVER_LICENSE // DMT-issued driving licence
+  VEHICLE_REGISTRATION // CR book
+  INSURANCE // at minimum third-party liability
   VEHICLE_PHOTO
   PROFILE_PHOTO
-  NATIONAL_ID
+  NATIONAL_ID // NIC
+  REVENUE_LICENCE // annual; requires valid insurance + VET certificate
+  VEHICLE_EMISSION_TEST // annual VET certificate
+  POLICE_CLEARANCE // Sri Lanka Police clearance certificate
+  GRAMA_NILADHARI_CERTIFICATE // residence + character certificate
+  MEDICAL_CERTIFICATE // medical clearance (required for DMT licensing)
+  VEHICLE_FITNESS_CERTIFICATE // certificate of fitness (higher-capacity vehicles)
 }
 
 enum DocumentStatus {
@@ -107,6 +148,13 @@ enum NotificationType {
   ASSOCIATION_ANNOUNCEMENT
   DOCUMENT_APPROVED
   DOCUMENT_REJECTED
+  DOCUMENT_EXPIRING_SOON
+  DOCUMENT_EXPIRED
+  DRIVER_APPROVED
+  DRIVER_REJECTED
+  BACKGROUND_CHECK_CLEARED
+  COMPLIANCE_HOLD
+  PERFORMANCE_WARNING
   SYSTEM
 }
 
@@ -247,14 +295,15 @@ model Association {
   createdAt         DateTime          @default(now())
   updatedAt         DateTime          @updatedAt
 
-  admins         User[]          @relation("AssociationAdmins")
-  drivers        Driver[]
-  trips          Trip[]
-  pricingRules   PricingRule[]
-  announcements  Announcement[]
-  events         Event[]
-  complaints     Complaint[]
-  membershipFees MembershipFee[]
+  admins          User[]                 @relation("AssociationAdmins")
+  drivers         Driver[]
+  trips           Trip[]
+  pricingRules    PricingRule[]
+  announcements   Announcement[]
+  events          Event[]
+  complaints      Complaint[]
+  membershipFees  MembershipFee[]
+  eligibilityRule DriverEligibilityRule?
 
   @@index([status])
 }
@@ -337,13 +386,28 @@ model Complaint {
 // ============================================================
 
 model Driver {
-  id              String       @id @default(cuid())
-  userId          String       @unique
-  user            User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  associationId   String
-  association     Association  @relation(fields: [associationId], references: [id])
-  licenseNumber   String       @unique
+  id            String      @id @default(cuid())
+  userId        String      @unique
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  associationId String
+  association   Association @relation(fields: [associationId], references: [id])
+
+  // --- Identity (Sri Lanka) ---
+  // Nullable because they were added after the first drivers were onboarded;
+  // the registration flow requires them for every new applicant.
+  nicNumber   String?   @unique
+  dateOfBirth DateTime?
+  addressLine String?
+  city        String?
+  district    String?
+  gnDivision  String? // Grama Niladhari division, for the character certificate
+
+  // --- Driving licence (DMT) ---
+  licenseNumber   String        @unique
   licenseExpiry   DateTime
+  licenceClass    LicenceClass?
+  licenceIssuedAt DateTime?
+
   status          DriverStatus @default(PENDING)
   isOnline        Boolean      @default(false)
   currentLat      Float?
@@ -356,6 +420,27 @@ model Driver {
   rejectionReason String?
   joinedAt        DateTime     @default(now())
 
+  // --- Verification pipeline ---
+  submittedAt           DateTime?
+  documentsVerifiedAt   DateTime?
+  documentsVerifiedById String?
+  backgroundCheckStatus BackgroundCheckStatus @default(NOT_STARTED)
+  backgroundCheckAt     DateTime?
+  backgroundCheckById   String?
+  backgroundCheckNotes  String?
+
+  // --- Performance standards (platform-set, see DriverEligibilityRule) ---
+  acceptedTrips      Int       @default(0)
+  cancelledTrips     Int       @default(0)
+  offeredTrips       Int       @default(0)
+  ratingCount        Int       @default(0)
+  deactivatedAt      DateTime?
+  deactivationReason String?
+
+  // --- Compliance ---
+  complianceHoldAt     DateTime?
+  complianceHoldReason String?
+
   vehicles       Vehicle[]
   documents      Document[]
   trips          Trip[]
@@ -365,23 +450,43 @@ model Driver {
 
   @@index([associationId, status])
   @@index([isOnline])
+  @@index([status])
 }
 
 model Vehicle {
-  id              String      @id @default(cuid())
-  driverId        String
-  driver          Driver      @relation(fields: [driverId], references: [id], onDelete: Cascade)
-  type            VehicleType
-  make            String
-  model           String
-  year            Int
-  plateNumber     String      @unique
-  color           String
-  capacity        Int
-  photoUrls       String[]
-  insuranceExpiry DateTime
-  isActive        Boolean     @default(true)
-  createdAt       DateTime    @default(now())
+  id          String      @id @default(cuid())
+  driverId    String
+  driver      Driver      @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  type        VehicleType
+  make        String
+  model       String
+  year        Int
+  plateNumber String      @unique
+  color       String
+  capacity    Int
+  photoUrls   String[]
+
+  // --- Insurance (mandatory, at minimum third-party liability) ---
+  insuranceExpiry   DateTime
+  insurerName       String?
+  insurancePolicyNo String?
+
+  // --- Revenue licence: annual, and legally requires a valid insurance
+  //     certificate plus a Vehicle Emission Test certificate to be issued. ---
+  revenueLicenceNo     String?
+  revenueLicenceExpiry DateTime?
+
+  // --- Vehicle Emission Test certificate: annual. Brand-new vehicles are
+  //     exempt for the first year only; reconditioned vehicles need one from
+  //     year one; vehicles built before 1976 are exempt entirely. ---
+  emissionTestExpiry DateTime?
+  emissionTestExempt Boolean   @default(false)
+
+  // --- Certificate of fitness: applies to higher-capacity/commercial classes ---
+  fitnessCertExpiry DateTime?
+
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
 
   trips Trip[]
 
@@ -390,11 +495,19 @@ model Vehicle {
 }
 
 model Document {
-  id              String         @id @default(cuid())
-  driverId        String
-  driver          Driver         @relation(fields: [driverId], references: [id], onDelete: Cascade)
-  type            DocumentType
-  fileUrl         String
+  id       String       @id @default(cuid())
+  driverId String
+  driver   Driver       @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  type     DocumentType
+  fileUrl  String
+
+  // Certificate/reference number and validity, so expiry can be enforced
+  // automatically rather than relying on a reviewer noticing.
+  documentNumber   String?
+  issuingAuthority String?
+  issuedAt         DateTime?
+  expiresAt        DateTime?
+
   status          DocumentStatus @default(PENDING)
   rejectionReason String?
   uploadedAt      DateTime       @default(now())
@@ -402,6 +515,38 @@ model Document {
   reviewedById    String?
 
   @@index([driverId, type])
+  @@index([expiresAt])
+}
+
+/// Platform-set driver qualification thresholds. Sri Lanka has no national
+/// framework governing app-based taxi operators yet (the NTC gained authority
+/// over three-wheelers in June 2023, with a fuller framework expected in 2026),
+/// so these are the platform's own standards — configurable per association,
+/// with the global row (associationId = null) as the default.
+model DriverEligibilityRule {
+  id            String       @id @default(cuid())
+  associationId String?      @unique
+  association   Association? @relation(fields: [associationId], references: [id], onDelete: Cascade)
+
+  minDriverAge       Int @default(18) // DMT minimum licensing age
+  minLicenceYears    Int @default(1) // years held before carrying passengers
+  maxVehicleAgeYears Int @default(20)
+
+  requirePoliceClearance Boolean @default(true)
+  requireGramaNiladhari  Boolean @default(true)
+  requireMedicalCert     Boolean @default(true)
+  requireRevenueLicence  Boolean @default(true)
+  requireEmissionTest    Boolean @default(true)
+
+  // Uber/Lyft-style performance standards
+  minRating           Decimal @default(4.0) @db.Decimal(3, 2)
+  maxCancellationRate Decimal @default(0.25) @db.Decimal(4, 3)
+  ratingGracePeriod   Int     @default(20) // trips before rating is enforced
+
+  expiryWarningDays Int @default(30)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 // ============================================================
