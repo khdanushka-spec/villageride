@@ -8,9 +8,12 @@ import { AddressSearch } from "@/components/booking/address-search";
 import type { LatLng } from "@/components/booking/location-map";
 import { VEHICLE_TYPE_ICONS, VEHICLE_TYPE_LABELS } from "@/lib/vehicle-types";
 import { requestTripAction, type ActionState } from "@/actions/trips";
+import { getNearbyOnlineDrivers, type NearbyDriver } from "@/actions/driver";
 import type { FareEstimate } from "@/lib/fare";
 import type { RoadRoute } from "@/lib/routing";
 import { cn } from "@/lib/utils";
+
+const NEARBY_DRIVERS_POLL_MS = 7000;
 
 const LocationMap = dynamic(() => import("@/components/booking/location-map").then((m) => m.LocationMap), {
   ssr: false,
@@ -29,6 +32,7 @@ export function BookRideForm({ onRequested }: { onRequested: (tripId: string) =>
   const [paymentMethod, setPaymentMethod] = useState<"CASH" | "WALLET">("CASH");
   const [locating, setLocating] = useState(false);
   const [locateError, setLocateError] = useState<string | null>(null);
+  const [nearbyDrivers, setNearbyDrivers] = useState<NearbyDriver[]>([]);
 
   const [state, formAction, pending] = useActionState<ActionState, FormData>(async (_prev, formData) => {
     const result = await requestTripAction(_prev, formData);
@@ -59,6 +63,29 @@ export function BookRideForm({ onRequested }: { onRequested: (tripId: string) =>
       .finally(() => setEstimatesLoading(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pickup, dropoff]);
+
+  // Show nearby online drivers as soon as pickup is set — reassurance that
+  // drivers are actually around, refreshed periodically like Uber/Lyft's
+  // home-screen "cars nearby" view. Keeps running while the customer fills
+  // in the rest of the form, not just before dropoff is chosen.
+  useEffect(() => {
+    if (!pickup) {
+      setNearbyDrivers([]);
+      return;
+    }
+    let cancelled = false;
+    async function poll() {
+      const drivers = await getNearbyOnlineDrivers(pickup!.lat, pickup!.lng);
+      if (!cancelled) setNearbyDrivers(drivers);
+    }
+    poll();
+    const interval = setInterval(poll, NEARBY_DRIVERS_POLL_MS);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pickup?.lat, pickup?.lng]);
 
   async function reverseGeocode(lat: number, lng: number): Promise<string> {
     const res = await fetch(`/api/geocode?mode=reverse&lat=${lat}&lng=${lng}`);
@@ -263,6 +290,7 @@ export function BookRideForm({ onRequested }: { onRequested: (tripId: string) =>
         <LocationMap
           pickup={pickup}
           dropoff={dropoff}
+          nearbyDrivers={nearbyDrivers}
           onMapClick={handleMapClick}
           routeGeometry={route?.geometry}
           className="h-full w-full"

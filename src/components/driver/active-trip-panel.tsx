@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -10,7 +10,6 @@ import {
   startTripAction,
   completeTripAction,
 } from "@/actions/trips";
-import { updateDriverLocationAction } from "@/actions/driver";
 import { VEHICLE_TYPE_LABELS } from "@/lib/vehicle-types";
 import type { RoadRoute } from "@/lib/routing";
 
@@ -37,7 +36,6 @@ export function ActiveTripPanel({ tripId, onDone }: { tripId: string; onDone: ()
   const [route, setRoute] = useState<RoadRoute | null>(null);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const watchIdRef = useRef<number | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -75,20 +73,9 @@ export function ActiveTripPanel({ tripId, onDone }: { tripId: string; onDone: ()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [trip?.pickupLat, trip?.pickupLng, trip?.dropoffLat, trip?.dropoffLng]);
 
-  // Share live location with the customer while the trip is active.
-  useEffect(() => {
-    if (!navigator.geolocation) return;
-    watchIdRef.current = navigator.geolocation.watchPosition(
-      (pos) => {
-        updateDriverLocationAction(pos.coords.latitude, pos.coords.longitude);
-      },
-      () => {},
-      { enableHighAccuracy: true, maximumAge: 10_000 }
-    );
-    return () => {
-      if (watchIdRef.current != null) navigator.geolocation.clearWatch(watchIdRef.current);
-    };
-  }, []);
+  // Live location reporting is handled by DriverConsole (useDriverLocationTracking),
+  // which keeps running across the online<->active-trip transition instead of
+  // this panel starting its own separate watch on mount.
 
   async function run(action: () => Promise<{ error?: string } | undefined>) {
     setPending(true);

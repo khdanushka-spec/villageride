@@ -5,6 +5,8 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { reconcileDriverCompliance } from "@/lib/enforce-compliance";
 import { DRIVER_STATUS_LABELS } from "@/lib/compliance";
+import { haversineKm } from "@/lib/routing";
+import type { VehicleType } from "@prisma/client";
 
 export async function toggleOnlineAction(isOnline: boolean) {
   const session = await auth();
@@ -74,4 +76,45 @@ export async function getAvailableTripRequests() {
     orderBy: { requestedAt: "asc" },
     take: 20,
   });
+}
+
+const NEARBY_RADIUS_KM = 15;
+// Drivers stop reporting position the moment they go offline or lose
+// compliance (reconcileDriverCompliance forces isOnline: false), but a stale
+// lastLocationAt still guards against showing someone whose browser tab died
+// without a clean disconnect.
+const STALE_LOCATION_MS = 2 * 60 * 1000;
+
+export type NearbyDriver = { lat: number; lng: number; vehicleType: VehicleType };
+
+/**
+ * Online, approved, recently-seen drivers near a point — shown as anonymous
+ * car icons on the customer's booking map before they've requested a ride,
+ * the same "cars nearby" view Uber/Lyft show on their home screen.
+ */
+export async function getNearbyOnlineDrivers(lat: number, lng: number): Promise<NearbyDriver[]> {
+  const session = await auth();
+  if (!session?.user) return [];
+
+  const drivers = await prisma.driver.findMany({
+    where: {
+      isOnline: true,
+      status: "APPROVED",
+      currentLat: { not: null },
+      currentLng: { not: null },
+      lastLocationAt: { gte: new Date(Date.now() - STALE_LOCATION_MS) },
+    },
+    include: { vehicles: { where: { isActive: true }, take: 1 } },
+  });
+
+  return drivers
+    .filter((d) => d.vehicles[0])
+    .map((d) => ({
+      lat: d.currentLat!,
+      lng: d.currentLng!,
+      vehicleType: d.vehicles[0].type,
+      distanceKm: haversineKm({ lat, lng }, { lat: d.currentLat!, lng: d.currentLng! }),
+    }))
+    .filter((d) => d.distanceKm <= NEARBY_RADIUS_KM)
+    .map(({ lat, lng, vehicleType }) => ({ lat, lng, vehicleType }));
 }

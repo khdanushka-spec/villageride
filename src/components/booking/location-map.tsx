@@ -56,13 +56,17 @@ export function LocationMap({
   pickup,
   dropoff,
   driver,
+  nearbyDrivers,
   onMapClick,
   className,
   routeGeometry,
 }: {
   pickup?: LatLng | null;
   dropoff?: LatLng | null;
+  /** A single assigned driver — this trip's driver, or the signed-in driver's own live position. */
   driver?: LatLng | null;
+  /** Other online drivers nearby, shown before a trip is assigned (the customer booking map). */
+  nearbyDrivers?: LatLng[] | null;
   onMapClick?: (lat: number, lng: number) => void;
   className?: string;
   /** [lat, lng] path tracing the real road route, from /api/route. Falls back to a straight line when omitted. */
@@ -80,16 +84,26 @@ export function LocationMap({
   const points: [number, number][] =
     routeGeometry && routeGeometry.length > 0
       ? routeGeometry
-      : [
-          ...(pickup ? [[pickup.lat, pickup.lng] as [number, number]] : []),
-          ...(dropoff ? [[dropoff.lat, dropoff.lng] as [number, number]] : []),
-        ];
+      : pickup || dropoff
+        ? [
+            ...(pickup ? [[pickup.lat, pickup.lng] as [number, number]] : []),
+            ...(dropoff ? [[dropoff.lat, dropoff.lng] as [number, number]] : []),
+          ]
+        : driver
+          ? [[driver.lat, driver.lng]]
+          : (nearbyDrivers ?? []).map((d) => [d.lat, d.lng] as [number, number]);
+
+  const fallbackCenter: [number, number] = pickup
+    ? [pickup.lat, pickup.lng]
+    : driver
+      ? [driver.lat, driver.lng]
+      : SRI_LANKA_CENTER;
 
   return (
     <div className={className}>
       <MapContainer
-        center={pickup ? [pickup.lat, pickup.lng] : SRI_LANKA_CENTER}
-        zoom={pickup ? 14 : 8}
+        center={fallbackCenter}
+        zoom={pickup || driver ? 14 : 8}
         scrollWheelZoom
         className="h-full w-full"
       >
@@ -102,6 +116,9 @@ export function LocationMap({
         {pickup && <Marker position={[pickup.lat, pickup.lng]} icon={pickupIcon} />}
         {dropoff && <Marker position={[dropoff.lat, dropoff.lng]} icon={dropoffIcon} />}
         {driver && <Marker position={[driver.lat, driver.lng]} icon={carDivIcon()} />}
+        {nearbyDrivers?.map((d, i) => (
+          <Marker key={`${d.lat}-${d.lng}-${i}`} position={[d.lat, d.lng]} icon={carDivIcon()} />
+        ))}
         {routePath && (
           <Polyline
             positions={routePath}

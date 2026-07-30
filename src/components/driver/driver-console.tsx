@@ -1,11 +1,18 @@
 "use client";
 
 import { useState } from "react";
+import dynamic from "next/dynamic";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { toggleOnlineAction } from "@/actions/driver";
 import { AvailableRidesList } from "@/components/driver/available-rides-list";
 import { ActiveTripPanel } from "@/components/driver/active-trip-panel";
+import { useDriverLocationTracking } from "@/hooks/use-driver-location-tracking";
+
+const LocationMap = dynamic(() => import("@/components/booking/location-map").then((m) => m.LocationMap), {
+  ssr: false,
+  loading: () => <div className="flex h-full items-center justify-center text-sm text-muted-foreground">Loading map…</div>,
+});
 
 export function DriverConsole({
   initialIsOnline,
@@ -18,6 +25,11 @@ export function DriverConsole({
   const [activeTripId, setActiveTripId] = useState(initialActiveTripId);
   const [toggling, setToggling] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Called unconditionally, before the active-trip early return below, so
+  // the same watch keeps reporting position across the online<->active-trip
+  // transition instead of stopping and restarting.
+  const position = useDriverLocationTracking(isOnline);
 
   async function handleToggle(checked: boolean) {
     setToggling(true);
@@ -52,7 +64,12 @@ export function DriverConsole({
       {error && <p className="text-sm text-destructive">{error}</p>}
 
       {isOnline ? (
-        <AvailableRidesList onAccepted={setActiveTripId} />
+        <>
+          <div className="h-48 overflow-hidden rounded-2xl border border-border">
+            <LocationMap driver={position} className="h-full w-full" />
+          </div>
+          <AvailableRidesList onAccepted={setActiveTripId} />
+        </>
       ) : (
         <div className="rounded-2xl border border-dashed border-border p-10 text-center text-sm text-muted-foreground">
           You&apos;re currently offline.
