@@ -2,10 +2,33 @@ import type {
   DocumentType,
   Driver,
   DriverEligibilityRule,
+  DriverStatus,
   Document,
   Vehicle,
   VehicleType,
 } from "@prisma/client";
+
+export const DRIVER_STATUS_LABELS: Record<DriverStatus, string> = {
+  PENDING: "Pending",
+  DOCUMENTS_UNDER_REVIEW: "Documents under review",
+  BACKGROUND_CHECK: "Background check",
+  APPROVED: "Approved",
+  REJECTED: "Rejected",
+  SUSPENDED: "Suspended",
+  DEACTIVATED: "Deactivated",
+  COMPLIANCE_HOLD: "Compliance hold",
+};
+
+export const DRIVER_STATUS_VARIANT: Record<DriverStatus, "default" | "secondary" | "destructive" | "outline"> = {
+  PENDING: "secondary",
+  DOCUMENTS_UNDER_REVIEW: "secondary",
+  BACKGROUND_CHECK: "secondary",
+  APPROVED: "default",
+  REJECTED: "destructive",
+  SUSPENDED: "destructive",
+  DEACTIVATED: "destructive",
+  COMPLIANCE_HOLD: "outline",
+};
 import { licenceClassPermits, requiresFitnessCertificate } from "@/lib/licence-classes";
 
 export const DOCUMENT_TYPE_LABELS: Record<DocumentType, string> = {

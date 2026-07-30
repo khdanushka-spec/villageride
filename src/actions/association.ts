@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { logAudit } from "@/lib/audit";
+import { getRequiredDocuments, resolveEligibilityRules } from "@/lib/compliance";
 import type { VehicleType } from "@prisma/client";
 
 export type ActionState = { error?: string; success?: string } | undefined;
@@ -84,6 +85,208 @@ export async function reinstateDriverAction(driverId: string): Promise<ActionSta
   await logAudit({ actorUserId: ctx.userId, action: "DRIVER_REINSTATED", entityType: "Driver", entityId: driverId });
   revalidatePath("/dashboard/association/drivers");
   return { success: "Driver reinstated." };
+}
+
+// ---------------------------------------------------------------------------
+// Driver verification: per-document review, background check, approval
+// ---------------------------------------------------------------------------
+
+async function notifyDriver(driverId: string, type: "DRIVER_APPROVED" | "DRIVER_REJECTED" | "DOCUMENT_APPROVED" | "DOCUMENT_REJECTED" | "BACKGROUND_CHECK_CLEARED", title: string, body: string) {
+  const driver = await prisma.driver.findUnique({ where: { id: driverId }, select: { userId: true } });
+  if (!driver) return;
+  await prisma.notification.create({ data: { userId: driver.userId, type, title, body } });
+}
+
+/**
+ * Approves or rejects a single uploaded document. When approving the last
+ * outstanding required document, the driver is advanced automatically —
+ * into background check if the association requires police clearance,
+ * otherwise straight to APPROVED — mirroring how Uber/Lyft-style onboarding
+ * moves a driver forward the moment every check clears, rather than needing
+ * a separate manual "approve" click on top of clearing every document.
+ */
+export async function reviewDocumentAction(
+  documentId: string,
+  decision: "APPROVED" | "REJECTED",
+  rejectionReason?: string
+): Promise<ActionState> {
+  const ctx = await requireAssociationAdmin();
+  if (!ctx) return { error: "Not authorized." };
+
+  const document = await prisma.document.findUnique({
+    where: { id: documentId },
+    include: { driver: { include: { vehicles: { take: 1 }, documents: true } } },
+  });
+  if (!document || document.driver.associationId !== ctx.association.id) {
+    return { error: "Document not found." };
+  }
+
+  if (decision === "REJECTED" && !rejectionReason?.trim()) {
+    return { error: "Provide a reason for rejecting this document." };
+  }
+
+  await prisma.document.update({
+    where: { id: documentId },
+    data: {
+      status: decision,
+      rejectionReason: decision === "REJECTED" ? rejectionReason!.trim() : null,
+      reviewedAt: new Date(),
+      reviewedById: ctx.userId,
+    },
+  });
+
+  await logAudit({
+    actorUserId: ctx.userId,
+    action: decision === "APPROVED" ? "DOCUMENT_APPROVED" : "DOCUMENT_REJECTED",
+    entityType: "Document",
+    entityId: documentId,
+    metadata: { driverId: document.driverId, type: document.type, reason: rejectionReason },
+  });
+
+  if (decision === "REJECTED") {
+    await notifyDriver(
+      document.driverId,
+      "DOCUMENT_REJECTED",
+      "A document needs attention",
+      `Your ${document.type.replaceAll("_", " ").toLowerCase()} was rejected: ${rejectionReason!.trim()}`
+    );
+    revalidatePath(`/dashboard/association/drivers/${document.driverId}`);
+    return { success: "Document rejected." };
+  }
+
+  // Check whether every required document is now approved.
+  const vehicle = document.driver.vehicles[0];
+  if (vehicle) {
+    const [associationRule, globalRule] = await Promise.all([
+      prisma.driverEligibilityRule.findUnique({ where: { associationId: ctx.association.id } }),
+      prisma.driverEligibilityRule.findFirst({ where: { associationId: null } }),
+    ]);
+    const rules = resolveEligibilityRules(associationRule, globalRule);
+    const required = getRequiredDocuments(vehicle.type, rules);
+
+    const latestDocs = document.driver.documents.map((d) =>
+      d.id === documentId ? { ...d, status: "APPROVED" as const } : d
+    );
+    const allApproved = required.every((type) => latestDocs.some((d) => d.type === type && d.status === "APPROVED"));
+
+    if (allApproved && document.driver.status === "DOCUMENTS_UNDER_REVIEW") {
+      const nextStatus = rules.requirePoliceClearance ? "BACKGROUND_CHECK" : "APPROVED";
+      await prisma.driver.update({
+        where: { id: document.driverId },
+        data: {
+          status: nextStatus,
+          documentsVerifiedAt: new Date(),
+          documentsVerifiedById: ctx.userId,
+          ...(nextStatus === "APPROVED" ? { approvedAt: new Date(), approvedById: ctx.userId } : {}),
+        },
+      });
+      await notifyDriver(
+        document.driverId,
+        nextStatus === "APPROVED" ? "DRIVER_APPROVED" : "DOCUMENT_APPROVED",
+        nextStatus === "APPROVED" ? "You're approved to drive" : "Documents verified",
+        nextStatus === "APPROVED"
+          ? "All your documents are verified. You can go online now."
+          : "All your documents are verified. Your police clearance check is next."
+      );
+      await logAudit({
+        actorUserId: ctx.userId,
+        action: "DRIVER_DOCUMENTS_VERIFIED",
+        entityType: "Driver",
+        entityId: document.driverId,
+        metadata: { nextStatus },
+      });
+    }
+  }
+
+  revalidatePath(`/dashboard/association/drivers/${document.driverId}`);
+  revalidatePath("/dashboard/association/drivers");
+  return { success: "Document approved." };
+}
+
+export async function startBackgroundCheckAction(driverId: string): Promise<ActionState> {
+  const ctx = await requireAssociationAdmin();
+  if (!ctx) return { error: "Not authorized." };
+
+  const result = await prisma.driver.updateMany({
+    where: { id: driverId, associationId: ctx.association.id },
+    data: { backgroundCheckStatus: "IN_PROGRESS", backgroundCheckById: ctx.userId },
+  });
+  if (result.count === 0) return { error: "Driver not found." };
+
+  revalidatePath(`/dashboard/association/drivers/${driverId}`);
+  return { success: "Background check marked in progress." };
+}
+
+export async function clearBackgroundCheckAction(driverId: string, notes?: string): Promise<ActionState> {
+  const ctx = await requireAssociationAdmin();
+  if (!ctx) return { error: "Not authorized." };
+
+  const driver = await prisma.driver.findFirst({
+    where: { id: driverId, associationId: ctx.association.id },
+  });
+  if (!driver) return { error: "Driver not found." };
+
+  await prisma.driver.update({
+    where: { id: driverId },
+    data: {
+      backgroundCheckStatus: "CLEARED",
+      backgroundCheckAt: new Date(),
+      backgroundCheckById: ctx.userId,
+      backgroundCheckNotes: notes?.trim() || null,
+      ...(driver.status === "BACKGROUND_CHECK"
+        ? { status: "APPROVED", approvedAt: new Date(), approvedById: ctx.userId }
+        : {}),
+    },
+  });
+
+  await logAudit({
+    actorUserId: ctx.userId,
+    action: "BACKGROUND_CHECK_CLEARED",
+    entityType: "Driver",
+    entityId: driverId,
+  });
+  await notifyDriver(
+    driverId,
+    "BACKGROUND_CHECK_CLEARED",
+    "You're approved to drive",
+    "Your police clearance check passed and your documents are verified. You can go online now."
+  );
+
+  revalidatePath(`/dashboard/association/drivers/${driverId}`);
+  revalidatePath("/dashboard/association/drivers");
+  return { success: "Background check cleared." };
+}
+
+export async function failBackgroundCheckAction(driverId: string, notes: string): Promise<ActionState> {
+  const ctx = await requireAssociationAdmin();
+  if (!ctx) return { error: "Not authorized." };
+  if (!notes?.trim()) return { error: "Provide a reason." };
+
+  const result = await prisma.driver.updateMany({
+    where: { id: driverId, associationId: ctx.association.id },
+    data: {
+      backgroundCheckStatus: "FAILED",
+      backgroundCheckAt: new Date(),
+      backgroundCheckById: ctx.userId,
+      backgroundCheckNotes: notes.trim(),
+      status: "REJECTED",
+      rejectionReason: `Background check failed: ${notes.trim()}`,
+    },
+  });
+  if (result.count === 0) return { error: "Driver not found." };
+
+  await logAudit({
+    actorUserId: ctx.userId,
+    action: "BACKGROUND_CHECK_FAILED",
+    entityType: "Driver",
+    entityId: driverId,
+    metadata: { notes },
+  });
+  await notifyDriver(driverId, "DRIVER_REJECTED", "Application not approved", `Background check failed: ${notes.trim()}`);
+
+  revalidatePath(`/dashboard/association/drivers/${driverId}`);
+  revalidatePath("/dashboard/association/drivers");
+  return { success: "Background check marked failed." };
 }
 
 const pricingSchema = z.object({

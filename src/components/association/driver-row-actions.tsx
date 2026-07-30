@@ -56,11 +56,11 @@ export function DriverRowActions({ driverId, status }: { driverId: string; statu
   return (
     <div className="flex flex-col items-end gap-1">
       <div className="flex gap-1.5">
-        {status === "PENDING" && (
+        {(status === "PENDING" || status === "DOCUMENTS_UNDER_REVIEW" || status === "BACKGROUND_CHECK") && (
           <>
-            <Button size="sm" disabled={pending} onClick={() => run(() => approveDriverAction(driverId))}>
+            <Button size="sm" variant="outline" disabled={pending} onClick={() => run(() => approveDriverAction(driverId))}>
               {pending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-              Approve
+              Approve anyway
             </Button>
             <Button size="sm" variant="outline" onClick={() => setShowReject(true)}>
               Reject
@@ -73,7 +73,7 @@ export function DriverRowActions({ driverId, status }: { driverId: string; statu
             Suspend
           </Button>
         )}
-        {status === "SUSPENDED" && (
+        {(status === "SUSPENDED" || status === "DEACTIVATED" || status === "COMPLIANCE_HOLD") && (
           <Button size="sm" disabled={pending} onClick={() => run(() => reinstateDriverAction(driverId))}>
             {pending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
             Reinstate

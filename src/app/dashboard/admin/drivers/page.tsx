@@ -4,15 +4,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { UserActiveToggle } from "@/components/admin/user-active-toggle";
 import { VEHICLE_TYPE_LABELS } from "@/lib/vehicle-types";
+import { DRIVER_STATUS_LABELS, DRIVER_STATUS_VARIANT } from "@/lib/compliance";
 
 export const dynamic = "force-dynamic";
-
-const STATUS_VARIANT: Record<string, "default" | "secondary" | "destructive"> = {
-  APPROVED: "default",
-  PENDING: "secondary",
-  REJECTED: "destructive",
-  SUSPENDED: "destructive",
-};
 
 export default async function AdminDriversPage() {
   await requireSuperAdminSession();
@@ -59,7 +53,7 @@ export default async function AdminDriversPage() {
                 </TableCell>
                 <TableCell className="text-sm">{Number(driver.ratingAvg).toFixed(1)}</TableCell>
                 <TableCell>
-                  <Badge variant={STATUS_VARIANT[driver.status]}>{driver.status.toLowerCase()}</Badge>
+                  <Badge variant={DRIVER_STATUS_VARIANT[driver.status]}>{DRIVER_STATUS_LABELS[driver.status]}</Badge>
                 </TableCell>
                 <TableCell className="text-right">
                   <UserActiveToggle userId={driver.user.id} isActive={driver.user.isActive} />

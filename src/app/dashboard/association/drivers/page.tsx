@@ -1,18 +1,13 @@
+import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { requireAssociationForAdmin } from "@/lib/association-admin";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { DriverRowActions } from "@/components/association/driver-row-actions";
 import { VEHICLE_TYPE_LABELS } from "@/lib/vehicle-types";
+import { DRIVER_STATUS_LABELS, DRIVER_STATUS_VARIANT } from "@/lib/compliance";
 
 export const dynamic = "force-dynamic";
-
-const STATUS_VARIANT: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
-  APPROVED: "default",
-  PENDING: "secondary",
-  REJECTED: "destructive",
-  SUSPENDED: "destructive",
-};
 
 export default async function AssociationDriversPage() {
   const association = await requireAssociationForAdmin();
@@ -45,7 +40,9 @@ export default async function AssociationDriversPage() {
             {drivers.map((driver) => (
               <TableRow key={driver.id}>
                 <TableCell>
-                  <p className="font-medium">{driver.user.name}</p>
+                  <Link href={`/dashboard/association/drivers/${driver.id}`} className="font-medium hover:underline">
+                    {driver.user.name}
+                  </Link>
                   <p className="text-xs text-muted-foreground">{driver.user.email ?? driver.user.phone}</p>
                 </TableCell>
                 <TableCell className="text-sm">
@@ -53,7 +50,7 @@ export default async function AssociationDriversPage() {
                 </TableCell>
                 <TableCell className="text-sm">{Number(driver.ratingAvg).toFixed(1)}</TableCell>
                 <TableCell>
-                  <Badge variant={STATUS_VARIANT[driver.status]}>{driver.status.toLowerCase()}</Badge>
+                  <Badge variant={DRIVER_STATUS_VARIANT[driver.status]}>{DRIVER_STATUS_LABELS[driver.status]}</Badge>
                 </TableCell>
                 <TableCell className="text-right">
                   <DriverRowActions driverId={driver.id} status={driver.status} />
