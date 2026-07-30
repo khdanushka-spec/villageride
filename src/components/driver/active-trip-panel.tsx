@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { useEffect, useState } from "react";
-import { Loader2 } from "lucide-react";
+import { Clock, Loader2, Navigation } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   cancelTripAction,
@@ -11,6 +11,7 @@ import {
   completeTripAction,
 } from "@/actions/trips";
 import { VEHICLE_TYPE_LABELS } from "@/lib/vehicle-types";
+import { useTripProgress } from "@/hooks/use-trip-progress";
 import type { RoadRoute } from "@/lib/routing";
 
 const LocationMap = dynamic(() => import("@/components/booking/location-map").then((m) => m.LocationMap), {
@@ -29,6 +30,7 @@ type TripData = {
   estimatedFare: string;
   finalFare: string | null;
   vehicleType: string;
+  driver: { currentLat: number | null; currentLng: number | null } | null;
 };
 
 export function ActiveTripPanel({ tripId, onDone }: { tripId: string; onDone: () => void }) {
@@ -77,6 +79,18 @@ export function ActiveTripPanel({ tripId, onDone }: { tripId: string; onDone: ()
   // which keeps running across the online<->active-trip transition instead of
   // this panel starting its own separate watch on mount.
 
+  const driverLocation =
+    trip?.driver?.currentLat != null && trip?.driver?.currentLng != null
+      ? { lat: trip.driver.currentLat, lng: trip.driver.currentLng }
+      : null;
+
+  const progress = useTripProgress({
+    status: trip?.status ?? "",
+    driver: driverLocation,
+    pickup: { lat: trip?.pickupLat ?? 0, lng: trip?.pickupLng ?? 0 },
+    dropoff: { lat: trip?.dropoffLat ?? 0, lng: trip?.dropoffLng ?? 0 },
+  });
+
   async function run(action: () => Promise<{ error?: string } | undefined>) {
     setPending(true);
     setError(null);
@@ -121,10 +135,25 @@ export function ActiveTripPanel({ tripId, onDone }: { tripId: string; onDone: ()
         <LocationMap
           pickup={{ lat: trip.pickupLat, lng: trip.pickupLng }}
           dropoff={{ lat: trip.dropoffLat, lng: trip.dropoffLng }}
-          routeGeometry={route?.geometry}
+          driver={driverLocation}
+          routeGeometry={progress?.geometry ?? route?.geometry}
+          fitKey={trip.status === "IN_PROGRESS" ? "dropoff" : "pickup"}
           className="h-full w-full"
         />
       </div>
+
+      {progress && (trip.status === "ACCEPTED" || trip.status === "IN_PROGRESS") && (
+        <div className="flex items-center justify-center gap-4 rounded-xl border border-border/70 bg-secondary/40 p-2.5 text-sm">
+          <span className="flex items-center gap-1.5 font-medium">
+            <Clock className="h-4 w-4 text-primary" />
+            {progress.durationMin} min {trip.status === "IN_PROGRESS" ? "to destination" : "to pickup"}
+          </span>
+          <span className="flex items-center gap-1.5 text-muted-foreground">
+            <Navigation className="h-4 w-4" />
+            {progress.distanceKm.toFixed(1)} km
+          </span>
+        </div>
+      )}
 
       <div className="space-y-1 text-sm">
         <p>

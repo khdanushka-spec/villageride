@@ -1,7 +1,7 @@
 "use client";
 
 import "leaflet/dist/leaflet.css";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { MapContainer, Marker, Polyline, TileLayer, useMapEvents, useMap } from "react-leaflet";
 import L from "leaflet";
 
@@ -37,16 +37,24 @@ function ClickHandler({ onClick }: { onClick?: (lat: number, lng: number) => voi
   return null;
 }
 
-function AutoFit({ points }: { points: [number, number][] }) {
+function AutoFit({ points, fitKey }: { points: [number, number][]; fitKey?: string | number }) {
   const map = useMap();
+  // Live tracking refetches the route every few seconds, which would refit
+  // (and visibly jerk/rezoom) the map on every update if we fit on every
+  // points change. Only refit once per fitKey — callers pass a value that
+  // changes on a meaningful phase change (e.g. heading to pickup -> en
+  // route to drop-off), not on every position tick.
+  const lastFitKey = useRef<string | number | undefined>(undefined);
   useEffect(() => {
     if (points.length === 0) return;
+    if (fitKey !== undefined && lastFitKey.current === fitKey) return;
+    lastFitKey.current = fitKey;
     if (points.length === 1) {
       map.setView(points[0], 14);
       return;
     }
     map.fitBounds(L.latLngBounds(points), { padding: [48, 48] });
-  }, [map, points]);
+  }, [map, points, fitKey]);
   return null;
 }
 
@@ -60,6 +68,7 @@ export function LocationMap({
   onMapClick,
   className,
   routeGeometry,
+  fitKey,
 }: {
   pickup?: LatLng | null;
   dropoff?: LatLng | null;
@@ -71,6 +80,8 @@ export function LocationMap({
   className?: string;
   /** [lat, lng] path tracing the real road route, from /api/route. Falls back to a straight line when omitted. */
   routeGeometry?: [number, number][] | null;
+  /** Changes only on a meaningful phase change; re-fits the view once per value instead of on every live update. */
+  fitKey?: string | number;
 }) {
   const routePath = routeGeometry?.length
     ? routeGeometry
@@ -112,7 +123,7 @@ export function LocationMap({
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
         <ClickHandler onClick={onMapClick} />
-        <AutoFit points={points} />
+        <AutoFit points={points} fitKey={fitKey} />
         {pickup && <Marker position={[pickup.lat, pickup.lng]} icon={pickupIcon} />}
         {dropoff && <Marker position={[dropoff.lat, dropoff.lng]} icon={dropoffIcon} />}
         {driver && <Marker position={[driver.lat, driver.lng]} icon={carDivIcon()} />}
