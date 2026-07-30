@@ -12,6 +12,7 @@ import {
 } from "@/actions/trips";
 import { updateDriverLocationAction } from "@/actions/driver";
 import { VEHICLE_TYPE_LABELS } from "@/lib/vehicle-types";
+import type { RoadRoute } from "@/lib/routing";
 
 const LocationMap = dynamic(() => import("@/components/booking/location-map").then((m) => m.LocationMap), {
   ssr: false,
@@ -33,6 +34,7 @@ type TripData = {
 
 export function ActiveTripPanel({ tripId, onDone }: { tripId: string; onDone: () => void }) {
   const [trip, setTrip] = useState<TripData | null>(null);
+  const [route, setRoute] = useState<RoadRoute | null>(null);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const watchIdRef = useRef<number | null>(null);
@@ -50,6 +52,28 @@ export function ActiveTripPanel({ tripId, onDone }: { tripId: string; onDone: ()
       clearInterval(interval);
     };
   }, [tripId]);
+
+  // Fetch the road route once for this trip's fixed pickup/dropoff — not on
+  // every poll tick, since the pins don't move.
+  useEffect(() => {
+    if (!trip) return;
+    let cancelled = false;
+    const params = new URLSearchParams({
+      pickupLat: String(trip.pickupLat),
+      pickupLng: String(trip.pickupLng),
+      dropoffLat: String(trip.dropoffLat),
+      dropoffLng: String(trip.dropoffLng),
+    });
+    fetch(`/api/route?${params}`)
+      .then((r) => r.json())
+      .then((data: RoadRoute) => {
+        if (!cancelled) setRoute(data);
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [trip?.pickupLat, trip?.pickupLng, trip?.dropoffLat, trip?.dropoffLng]);
 
   // Share live location with the customer while the trip is active.
   useEffect(() => {
@@ -110,6 +134,7 @@ export function ActiveTripPanel({ tripId, onDone }: { tripId: string; onDone: ()
         <LocationMap
           pickup={{ lat: trip.pickupLat, lng: trip.pickupLng }}
           dropoff={{ lat: trip.dropoffLat, lng: trip.dropoffLng }}
+          routeGeometry={route?.geometry}
           className="h-full w-full"
         />
       </div>

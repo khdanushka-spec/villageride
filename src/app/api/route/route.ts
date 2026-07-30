@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import { estimateAllVehicleTypes } from "@/lib/fare";
 import { getRoadRoute } from "@/lib/routing";
 
+/** Proxies road-route lookups so the map can draw the real path a driver takes, not a straight line. */
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const pickupLat = Number(searchParams.get("pickupLat"));
@@ -13,13 +13,10 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Missing coordinates" }, { status: 400 });
   }
 
-  const pickup = { lat: pickupLat, lng: pickupLng };
-  const dropoff = { lat: dropoffLat, lng: dropoffLng };
+  const route = await getRoadRoute(
+    { lat: pickupLat, lng: pickupLng },
+    { lat: dropoffLat, lng: dropoffLng }
+  );
 
-  // Fetch the road route once and reuse it for every vehicle type's fare
-  // calculation, instead of each one hitting OSRM separately.
-  const route = await getRoadRoute(pickup, dropoff);
-  const estimates = await estimateAllVehicleTypes(pickup, dropoff, route);
-
-  return NextResponse.json({ estimates, route });
+  return NextResponse.json(route);
 }

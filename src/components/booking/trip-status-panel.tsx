@@ -9,6 +9,7 @@ import { cancelTripAction, rateTripAction } from "@/actions/trips";
 import { VEHICLE_TYPE_LABELS } from "@/lib/vehicle-types";
 import { useActionState } from "react";
 import type { ActionState } from "@/actions/trips";
+import type { RoadRoute } from "@/lib/routing";
 
 const LocationMap = dynamic(() => import("@/components/booking/location-map").then((m) => m.LocationMap), {
   ssr: false,
@@ -53,6 +54,7 @@ const STATUS_LABELS: Record<string, string> = {
 
 export function TripStatusPanel({ tripId, onClosed }: { tripId: string; onClosed: () => void }) {
   const [trip, setTrip] = useState<TripData | null>(null);
+  const [route, setRoute] = useState<RoadRoute | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -67,6 +69,28 @@ export function TripStatusPanel({ tripId, onClosed }: { tripId: string; onClosed
       clearInterval(interval);
     };
   }, [tripId]);
+
+  // Fetch the road route once for this trip's fixed pickup/dropoff — not on
+  // every 4s poll tick, since the pins don't move.
+  useEffect(() => {
+    if (!trip) return;
+    let cancelled = false;
+    const params = new URLSearchParams({
+      pickupLat: String(trip.pickupLat),
+      pickupLng: String(trip.pickupLng),
+      dropoffLat: String(trip.dropoffLat),
+      dropoffLng: String(trip.dropoffLng),
+    });
+    fetch(`/api/route?${params}`)
+      .then((r) => r.json())
+      .then((data: RoadRoute) => {
+        if (!cancelled) setRoute(data);
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [trip?.pickupLat, trip?.pickupLng, trip?.dropoffLat, trip?.dropoffLng]);
 
   const [cancelState, setCancelState] = useState<{ error?: string } | null>(null);
   const [cancelling, setCancelling] = useState(false);
@@ -117,6 +141,7 @@ export function TripStatusPanel({ tripId, onClosed }: { tripId: string; onClosed
           pickup={{ lat: trip.pickupLat, lng: trip.pickupLng }}
           dropoff={{ lat: trip.dropoffLat, lng: trip.dropoffLng }}
           driver={driverLocation}
+          routeGeometry={route?.geometry}
           className="h-full w-full"
         />
       </div>

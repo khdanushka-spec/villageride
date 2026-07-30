@@ -58,17 +58,32 @@ export function LocationMap({
   driver,
   onMapClick,
   className,
+  routeGeometry,
 }: {
   pickup?: LatLng | null;
   dropoff?: LatLng | null;
   driver?: LatLng | null;
   onMapClick?: (lat: number, lng: number) => void;
   className?: string;
+  /** [lat, lng] path tracing the real road route, from /api/route. Falls back to a straight line when omitted. */
+  routeGeometry?: [number, number][] | null;
 }) {
-  const points: [number, number][] = [
-    ...(pickup ? [[pickup.lat, pickup.lng] as [number, number]] : []),
-    ...(dropoff ? [[dropoff.lat, dropoff.lng] as [number, number]] : []),
-  ];
+  const routePath = routeGeometry?.length
+    ? routeGeometry
+    : pickup && dropoff
+      ? ([
+          [pickup.lat, pickup.lng],
+          [dropoff.lat, dropoff.lng],
+        ] as [number, number][])
+      : null;
+
+  const points: [number, number][] =
+    routeGeometry && routeGeometry.length > 0
+      ? routeGeometry
+      : [
+          ...(pickup ? [[pickup.lat, pickup.lng] as [number, number]] : []),
+          ...(dropoff ? [[dropoff.lat, dropoff.lng] as [number, number]] : []),
+        ];
 
   return (
     <div className={className}>
@@ -87,13 +102,14 @@ export function LocationMap({
         {pickup && <Marker position={[pickup.lat, pickup.lng]} icon={pickupIcon} />}
         {dropoff && <Marker position={[dropoff.lat, dropoff.lng]} icon={dropoffIcon} />}
         {driver && <Marker position={[driver.lat, driver.lng]} icon={carDivIcon()} />}
-        {pickup && dropoff && (
+        {routePath && (
           <Polyline
-            positions={[
-              [pickup.lat, pickup.lng],
-              [dropoff.lat, dropoff.lng],
-            ]}
-            pathOptions={{ color: "#0f766e", weight: 3, dashArray: "6 8" }}
+            positions={routePath}
+            pathOptions={
+              routeGeometry?.length
+                ? { color: "#0f766e", weight: 4 }
+                : { color: "#0f766e", weight: 3, dashArray: "6 8" }
+            }
           />
         )}
       </MapContainer>

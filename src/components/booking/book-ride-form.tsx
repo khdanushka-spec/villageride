@@ -9,6 +9,7 @@ import type { LatLng } from "@/components/booking/location-map";
 import { VEHICLE_TYPE_ICONS, VEHICLE_TYPE_LABELS } from "@/lib/vehicle-types";
 import { requestTripAction, type ActionState } from "@/actions/trips";
 import type { FareEstimate } from "@/lib/fare";
+import type { RoadRoute } from "@/lib/routing";
 import { cn } from "@/lib/utils";
 
 const LocationMap = dynamic(() => import("@/components/booking/location-map").then((m) => m.LocationMap), {
@@ -23,6 +24,7 @@ export function BookRideForm({ onRequested }: { onRequested: (tripId: string) =>
   const [dropoff, setDropoff] = useState<Point | null>(null);
   const [estimates, setEstimates] = useState<FareEstimate[] | null>(null);
   const [estimatesLoading, setEstimatesLoading] = useState(false);
+  const [route, setRoute] = useState<RoadRoute | null>(null);
   const [vehicleType, setVehicleType] = useState<string | null>(null);
   const [paymentMethod, setPaymentMethod] = useState<"CASH" | "WALLET">("CASH");
   const [locating, setLocating] = useState(false);
@@ -37,6 +39,7 @@ export function BookRideForm({ onRequested }: { onRequested: (tripId: string) =>
   useEffect(() => {
     if (!pickup || !dropoff) {
       setEstimates(null);
+      setRoute(null);
       return;
     }
     setEstimatesLoading(true);
@@ -48,9 +51,10 @@ export function BookRideForm({ onRequested }: { onRequested: (tripId: string) =>
     });
     fetch(`/api/fare-estimate?${params}`)
       .then((r) => r.json())
-      .then((data: FareEstimate[]) => {
-        setEstimates(data);
-        if (!vehicleType && data.length > 0) setVehicleType(data[0].vehicleType);
+      .then((data: { estimates: FareEstimate[]; route: RoadRoute }) => {
+        setEstimates(data.estimates);
+        setRoute(data.route);
+        if (!vehicleType && data.estimates.length > 0) setVehicleType(data.estimates[0].vehicleType);
       })
       .finally(() => setEstimatesLoading(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -256,7 +260,13 @@ export function BookRideForm({ onRequested }: { onRequested: (tripId: string) =>
       </div>
 
       <div className="h-80 overflow-hidden rounded-2xl border border-border lg:h-full lg:min-h-[420px]">
-        <LocationMap pickup={pickup} dropoff={dropoff} onMapClick={handleMapClick} className="h-full w-full" />
+        <LocationMap
+          pickup={pickup}
+          dropoff={dropoff}
+          onMapClick={handleMapClick}
+          routeGeometry={route?.geometry}
+          className="h-full w-full"
+        />
       </div>
     </div>
   );

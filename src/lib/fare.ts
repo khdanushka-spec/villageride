@@ -1,29 +1,6 @@
 import { Prisma, type VehicleType } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-
-const EARTH_RADIUS_KM = 6371;
-const AVERAGE_SPEED_KMH = 28; // conservative average for mixed urban/rural Sri Lankan roads
-
-/**
- * Straight-line (haversine) distance between two points. This is an
- * approximation used in place of a routing API (Google Maps/OSRM), which
- * would give real road distance — swapping one in later only touches this
- * function and estimateTrip below.
- */
-export function haversineKm(
-  a: { lat: number; lng: number },
-  b: { lat: number; lng: number }
-): number {
-  const toRad = (deg: number) => (deg * Math.PI) / 180;
-  const dLat = toRad(b.lat - a.lat);
-  const dLng = toRad(b.lng - a.lng);
-  const lat1 = toRad(a.lat);
-  const lat2 = toRad(b.lat);
-
-  const h =
-    Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
-  return EARTH_RADIUS_KM * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
-}
+import { getRoadRoute, type RoadRoute } from "@/lib/routing";
 
 export type FareEstimate = {
   vehicleType: VehicleType;
@@ -44,13 +21,15 @@ async function ratesForAssociation(associationId: string | null) {
 }
 
 /** Global default rates (associationId: null) — used until a driver from a
- * specific association accepts the trip. */
+ * specific association accepts the trip. Accepts an already-fetched route so
+ * callers that also need the road geometry (e.g. the fare-estimate API,
+ * which returns it to the map) don't pay for a second OSRM round trip. */
 export async function estimateAllVehicleTypes(
   pickup: { lat: number; lng: number },
-  dropoff: { lat: number; lng: number }
+  dropoff: { lat: number; lng: number },
+  precomputedRoute?: RoadRoute
 ): Promise<FareEstimate[]> {
-  const distanceKm = haversineKm(pickup, dropoff);
-  const durationMin = Math.max(5, Math.round((distanceKm / AVERAGE_SPEED_KMH) * 60));
+  const { distanceKm, durationMin } = precomputedRoute ?? (await getRoadRoute(pickup, dropoff));
 
   const rules = await ratesForAssociation(null);
 
