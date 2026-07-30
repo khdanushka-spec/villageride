@@ -41,11 +41,15 @@ export function DocumentResubmitRow({
   type,
   status,
   expiresAt,
+  expiresAtValue,
+  licenceIssuedAtValue,
   rejectionReason,
 }: {
   type: DocumentType;
   status: Status;
   expiresAt: string | null;
+  expiresAtValue?: string | null;
+  licenceIssuedAtValue?: string | null;
   rejectionReason: string | null;
 }) {
   const [open, setOpen] = useState(false);
@@ -135,7 +139,16 @@ export function DocumentResubmitRow({
               <Label htmlFor={`issued-${type}`} className="text-xs">
                 Licence issue date
               </Label>
-              <Input id={`issued-${type}`} name="licenceIssuedAt" type="date" required />
+              <p className="text-[11px] text-muted-foreground">
+                The date the licence was originally issued (not today) — only change this if it was wrong.
+              </p>
+              <Input
+                id={`issued-${type}`}
+                name="licenceIssuedAt"
+                type="date"
+                defaultValue={licenceIssuedAtValue ?? undefined}
+                required
+              />
             </div>
           )}
           {needsExpiry && (
@@ -143,7 +156,13 @@ export function DocumentResubmitRow({
               <Label htmlFor={`expiry-${type}`} className="text-xs">
                 New expiry date
               </Label>
-              <Input id={`expiry-${type}`} name="expiresAt" type="date" required />
+              <Input
+                id={`expiry-${type}`}
+                name="expiresAt"
+                type="date"
+                defaultValue={expiresAtValue ?? undefined}
+                required
+              />
             </div>
           )}
           {error && <p className="text-xs text-destructive">{error}</p>}

@@ -15,6 +15,11 @@ function fmtDate(d: Date | null) {
   return d ? d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : null;
 }
 
+// For <input type="date"> defaultValue, which needs YYYY-MM-DD.
+function toDateInputValue(d: Date | null | undefined) {
+  return d ? d.toISOString().slice(0, 10) : null;
+}
+
 export default async function DriverProfilePage() {
   const session = await auth();
   if (!session?.user) redirect("/login");
@@ -87,6 +92,8 @@ export default async function DriverProfilePage() {
               type={type}
               status={doc?.status ?? "MISSING"}
               expiresAt={fmtDate(doc?.expiresAt ?? null)}
+              expiresAtValue={toDateInputValue(doc?.expiresAt)}
+              licenceIssuedAtValue={type === "DRIVER_LICENSE" ? toDateInputValue(driver.licenceIssuedAt) : null}
               rejectionReason={doc?.rejectionReason ?? null}
             />
           );
