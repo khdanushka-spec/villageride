@@ -3,20 +3,17 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { ProfileForm } from "@/components/dashboard/profile-form";
 import { ChangePasswordForm } from "@/components/dashboard/change-password-form";
+import { DocumentResubmitRow } from "@/components/driver/document-resubmit-row";
 import { Badge } from "@/components/ui/badge";
 import { VEHICLE_TYPE_LABELS } from "@/lib/vehicle-types";
+import { getRequiredDocuments, resolveEligibilityRules } from "@/lib/compliance";
 import { Star } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
-const DOC_LABELS: Record<string, string> = {
-  DRIVER_LICENSE: "Driving license",
-  NATIONAL_ID: "National ID",
-  VEHICLE_REGISTRATION: "Vehicle registration",
-  INSURANCE: "Insurance",
-  VEHICLE_PHOTO: "Vehicle photo",
-  PROFILE_PHOTO: "Profile photo",
-};
+function fmtDate(d: Date | null) {
+  return d ? d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : null;
+}
 
 export default async function DriverProfilePage() {
   const session = await auth();
@@ -34,6 +31,13 @@ export default async function DriverProfilePage() {
   if (!user || !driver) redirect("/login");
 
   const vehicle = driver.vehicles[0];
+
+  const [associationRule, globalRule] = await Promise.all([
+    prisma.driverEligibilityRule.findUnique({ where: { associationId: driver.associationId } }),
+    prisma.driverEligibilityRule.findFirst({ where: { associationId: null } }),
+  ]);
+  const rules = resolveEligibilityRules(associationRule, globalRule);
+  const requiredDocumentTypes = vehicle ? getRequiredDocuments(vehicle.type, rules) : [];
 
   return (
     <div className="space-y-6">
@@ -68,16 +72,25 @@ export default async function DriverProfilePage() {
         </div>
       )}
 
-      <div className="max-w-md space-y-2 rounded-2xl border border-border bg-card p-5">
-        <h3 className="font-medium">Documents</h3>
-        {driver.documents.map((doc) => (
-          <div key={doc.id} className="flex items-center justify-between text-sm">
-            <span>{DOC_LABELS[doc.type] ?? doc.type}</span>
-            <Badge variant={doc.status === "APPROVED" ? "default" : doc.status === "REJECTED" ? "destructive" : "secondary"}>
-              {doc.status.toLowerCase()}
-            </Badge>
-          </div>
-        ))}
+      <div className="max-w-md space-y-3 rounded-2xl border border-border bg-card p-5">
+        <div>
+          <h3 className="font-medium">Documents</h3>
+          <p className="text-xs text-muted-foreground">
+            Update or renew any document — your association reviews it again before it&apos;s approved.
+          </p>
+        </div>
+        {requiredDocumentTypes.map((type) => {
+          const doc = driver.documents.find((d) => d.type === type);
+          return (
+            <DocumentResubmitRow
+              key={type}
+              type={type}
+              status={doc?.status ?? "MISSING"}
+              expiresAt={fmtDate(doc?.expiresAt ?? null)}
+              rejectionReason={doc?.rejectionReason ?? null}
+            />
+          );
+        })}
       </div>
     </div>
   );

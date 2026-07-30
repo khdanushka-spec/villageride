@@ -1,8 +1,10 @@
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { DriverConsole } from "@/components/driver/driver-console";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
 import { Clock, ShieldAlert, ShieldX, FileWarning, TriangleAlert } from "lucide-react";
 import { reconcileDriverCompliance } from "@/lib/enforce-compliance";
 
@@ -100,15 +102,18 @@ export default async function DriverDashboardPage() {
 
   if (driver.status === "COMPLIANCE_HOLD") {
     return (
-      <div className="mx-auto max-w-lg">
+      <div className="mx-auto max-w-lg space-y-3">
         <Alert variant="destructive">
           <FileWarning className="h-4 w-4" />
           <AlertTitle>Update required before you can go online</AlertTitle>
           <AlertDescription>
-            {driver.complianceHoldReason || "A required document has lapsed."} Contact {driver.association.name} once
-            it&apos;s renewed.
+            {driver.complianceHoldReason || "A required document has lapsed."} If this is a document you can renew,
+            update it below — otherwise contact {driver.association.name}.
           </AlertDescription>
         </Alert>
+        <Button nativeButton={false} render={<Link href="/dashboard/driver/profile" />} className="w-full">
+          Update my documents
+        </Button>
       </div>
     );
   }

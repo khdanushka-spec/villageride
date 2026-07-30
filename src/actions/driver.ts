@@ -4,9 +4,12 @@ import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { reconcileDriverCompliance } from "@/lib/enforce-compliance";
-import { DRIVER_STATUS_LABELS } from "@/lib/compliance";
+import { DRIVER_STATUS_LABELS, EXPIRING_DOCUMENT_TYPES } from "@/lib/compliance";
 import { haversineKm } from "@/lib/routing";
-import type { VehicleType } from "@prisma/client";
+import { isTrustedBlobUrl } from "@/lib/storage";
+import type { DocumentType, VehicleType } from "@prisma/client";
+
+export type ActionState = { error?: string; success?: string } | undefined;
 
 export async function toggleOnlineAction(isOnline: boolean) {
   const session = await auth();
@@ -117,4 +120,80 @@ export async function getNearbyOnlineDrivers(lat: number, lng: number): Promise<
     }))
     .filter((d) => d.distanceKm <= NEARBY_RADIUS_KM)
     .map(({ lat, lng, vehicleType }) => ({ lat, lng, vehicleType }));
+}
+
+/**
+ * Lets a driver replace one of their documents — the fix for both a
+ * REJECTED document and a document that's simply expired (which, unlike a
+ * rejection, doesn't otherwise give them anything to act on: it just holds
+ * them offline with no path back except waiting for time to fix a licence-
+ * age blocker or, for an actual document, contacting the association).
+ * Resets the existing row to PENDING rather than creating a new one, so the
+ * compliance engine's "find the approved one" check for this type can't
+ * find a stale approved-but-expired row ahead of the fresh submission.
+ */
+// For these types, the compliance engine doesn't only look at the Document
+// row — it separately checks an expiry field on Vehicle/Driver (set at
+// registration time and otherwise never touched again). Resubmitting the
+// document alone would leave that field stale, so a renewed-and-approved
+// document would still show as expired. Keep both in sync.
+const VEHICLE_EXPIRY_FIELD: Partial<Record<DocumentType, "insuranceExpiry" | "revenueLicenceExpiry" | "emissionTestExpiry" | "fitnessCertExpiry">> = {
+  INSURANCE: "insuranceExpiry",
+  REVENUE_LICENCE: "revenueLicenceExpiry",
+  VEHICLE_EMISSION_TEST: "emissionTestExpiry",
+  VEHICLE_FITNESS_CERTIFICATE: "fitnessCertExpiry",
+};
+
+export async function resubmitDocumentAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  const session = await auth();
+  if (!session?.user || session.user.role !== "DRIVER") return { error: "Not authorized." };
+
+  const driver = await prisma.driver.findUnique({
+    where: { userId: session.user.id },
+    include: { vehicles: { take: 1 } },
+  });
+  if (!driver) return { error: "Driver profile not found." };
+
+  const type = formData.get("type") as DocumentType | null;
+  const fileUrl = formData.get("fileUrl") as string | null;
+  if (!type || !fileUrl || !isTrustedBlobUrl(fileUrl)) return { error: "Upload failed. Please try again." };
+
+  const documentNumber = (formData.get("documentNumber") as string)?.trim() || undefined;
+  const expiresAtRaw = formData.get("expiresAt") as string;
+  if (EXPIRING_DOCUMENT_TYPES.includes(type) && !expiresAtRaw) {
+    return { error: "Enter the new expiry date." };
+  }
+  const expiresAt = expiresAtRaw ? new Date(expiresAtRaw) : undefined;
+
+  const existing = await prisma.document.findFirst({ where: { driverId: driver.id, type } });
+
+  if (existing) {
+    await prisma.document.update({
+      where: { id: existing.id },
+      data: {
+        fileUrl,
+        status: "PENDING",
+        rejectionReason: null,
+        reviewedAt: null,
+        reviewedById: null,
+        uploadedAt: new Date(),
+        ...(documentNumber ? { documentNumber } : {}),
+        ...(expiresAt ? { expiresAt } : {}),
+      },
+    });
+  } else {
+    await prisma.document.create({ data: { driverId: driver.id, type, fileUrl, documentNumber, expiresAt } });
+  }
+
+  if (expiresAt && type === "DRIVER_LICENSE") {
+    await prisma.driver.update({ where: { id: driver.id }, data: { licenseExpiry: expiresAt } });
+  }
+  const vehicleField = VEHICLE_EXPIRY_FIELD[type];
+  if (expiresAt && vehicleField && driver.vehicles[0]) {
+    await prisma.vehicle.update({ where: { id: driver.vehicles[0].id }, data: { [vehicleField]: expiresAt } });
+  }
+
+  revalidatePath("/dashboard/driver/profile");
+  revalidatePath("/dashboard/driver");
+  return { success: "Submitted for your association to review." };
 }

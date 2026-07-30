@@ -6,6 +6,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { logAudit } from "@/lib/audit";
 import { getRequiredDocuments, resolveEligibilityRules } from "@/lib/compliance";
+import { reconcileDriverCompliance } from "@/lib/enforce-compliance";
 import type { VehicleType } from "@prisma/client";
 
 export type ActionState = { error?: string; success?: string } | undefined;
@@ -195,6 +196,11 @@ export async function reviewDocumentAction(
         entityId: document.driverId,
         metadata: { nextStatus },
       });
+    } else if (document.driver.status === "COMPLIANCE_HOLD") {
+      // Approving a resubmitted document can be exactly what a hold was
+      // waiting on — recheck immediately rather than leaving the driver
+      // stuck until they next open the app triggers the same check.
+      await reconcileDriverCompliance(document.driverId);
     }
   }
 
