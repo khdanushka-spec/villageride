@@ -15,10 +15,12 @@ import type { Role } from "@prisma/client";
 export function DashboardShell({
   role,
   user,
+  navBadges,
   children,
 }: {
   role: Role;
   user: { name: string; email: string | null; avatarUrl: string | null; roleLabel: string };
+  navBadges?: Record<string, number>;
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
@@ -36,6 +38,7 @@ export function DashboardShell({
       <nav className="flex-1 space-y-0.5 px-2">
         {navItems.map((item) => {
           const active = pathname === item.href;
+          const badge = navBadges?.[item.href];
           return (
             <Link
               key={item.href}
@@ -49,7 +52,12 @@ export function DashboardShell({
               )}
             >
               <item.icon className="h-4 w-4" />
-              {item.label}
+              <span className="flex-1">{item.label}</span>
+              {!!badge && (
+                <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 text-xs font-semibold text-primary-foreground">
+                  {badge}
+                </span>
+              )}
             </Link>
           );
         })}
