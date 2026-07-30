@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { useEffect, useState } from "react";
-import { Clock, Loader2, Navigation } from "lucide-react";
+import { Clock, ExternalLink, Loader2, Navigation } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   cancelTripAction,
@@ -17,6 +17,21 @@ import type { RoadRoute } from "@/lib/routing";
 const LocationMap = dynamic(() => import("@/components/booking/location-map").then((m) => m.LocationMap), {
   ssr: false,
 });
+
+/**
+ * We draw our own preview route/ETA (via OSRM), but actual turn-by-turn
+ * navigation is left to Google Maps, same as Uber/Bolt/PickMe do — no
+ * origin is passed, so Maps uses the phone's own live GPS rather than our
+ * periodically-reported position.
+ */
+function googleMapsDirectionsUrl(destination: { lat: number; lng: number }): string {
+  const params = new URLSearchParams({
+    api: "1",
+    destination: `${destination.lat},${destination.lng}`,
+    travelmode: "driving",
+  });
+  return `https://www.google.com/maps/dir/?${params}`;
+}
 
 type TripData = {
   id: string;
@@ -153,6 +168,27 @@ export function ActiveTripPanel({ tripId, onDone }: { tripId: string; onDone: ()
             {progress.distanceKm.toFixed(1)} km
           </span>
         </div>
+      )}
+
+      {(trip.status === "ACCEPTED" || trip.status === "IN_PROGRESS") && (
+        <Button
+          variant="outline"
+          className="w-full"
+          render={
+            <a
+              href={googleMapsDirectionsUrl(
+                trip.status === "IN_PROGRESS"
+                  ? { lat: trip.dropoffLat, lng: trip.dropoffLng }
+                  : { lat: trip.pickupLat, lng: trip.pickupLng }
+              )}
+              target="_blank"
+              rel="noopener noreferrer"
+            />
+          }
+        >
+          <ExternalLink className="h-4 w-4" />
+          Navigate with Google Maps
+        </Button>
       )}
 
       <div className="space-y-1 text-sm">
