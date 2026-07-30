@@ -2,11 +2,11 @@
 
 import dynamic from "next/dynamic";
 import { useActionState, useEffect, useState } from "react";
-import { LocateFixed, Loader2, X } from "lucide-react";
+import { Banknote, CreditCard, LocateFixed, Loader2, Users, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AddressSearch } from "@/components/booking/address-search";
 import type { LatLng } from "@/components/booking/location-map";
-import { VEHICLE_TYPE_ICONS, VEHICLE_TYPE_LABELS } from "@/lib/vehicle-types";
+import { VEHICLE_TYPE_CAPACITY, VEHICLE_TYPE_ICONS, VEHICLE_TYPE_LABELS } from "@/lib/vehicle-types";
 import { requestTripAction, type ActionState } from "@/actions/trips";
 import { getNearbyOnlineDrivers, type NearbyDriver } from "@/actions/driver";
 import type { FareEstimate } from "@/lib/fare";
@@ -190,7 +190,7 @@ export function BookRideForm({ onRequested }: { onRequested: (tripId: string) =>
         </p>
 
         <div>
-          <p className="mb-2 text-xs font-medium text-muted-foreground">Choose a vehicle</p>
+          <p className="mb-2 text-sm font-semibold">Choose a ride</p>
           {estimatesLoading && (
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <Loader2 className="h-4 w-4 animate-spin" /> Calculating fares…
@@ -199,7 +199,7 @@ export function BookRideForm({ onRequested }: { onRequested: (tripId: string) =>
           {!estimatesLoading && !estimates && (
             <p className="text-sm text-muted-foreground">Set a pickup and destination to see fare estimates.</p>
           )}
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+          <div className="space-y-2">
             {estimates?.map((e) => {
               const Icon = VEHICLE_TYPE_ICONS[e.vehicleType];
               const active = vehicleType === e.vehicleType;
@@ -209,13 +209,22 @@ export function BookRideForm({ onRequested }: { onRequested: (tripId: string) =>
                   type="button"
                   onClick={() => setVehicleType(e.vehicleType)}
                   className={cn(
-                    "flex flex-col items-center gap-1 rounded-xl border px-3 py-3 text-center transition-colors",
-                    active ? "border-primary bg-primary/5" : "border-border hover:bg-secondary"
+                    "flex w-full items-center gap-3 rounded-xl border-2 px-3 py-2.5 text-left transition-colors",
+                    active ? "border-foreground bg-secondary/40" : "border-border hover:bg-secondary/40"
                   )}
                 >
-                  <Icon className="h-5 w-5 text-primary" />
-                  <span className="text-xs font-medium">{VEHICLE_TYPE_LABELS[e.vehicleType]}</span>
-                  <span className="text-sm font-semibold">
+                  <Icon className="h-9 w-9 shrink-0 text-foreground" />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-medium">{VEHICLE_TYPE_LABELS[e.vehicleType]}</span>
+                      <span className="flex items-center gap-0.5 text-xs text-muted-foreground">
+                        <Users className="h-3 w-3" />
+                        {VEHICLE_TYPE_CAPACITY[e.vehicleType]}
+                      </span>
+                    </div>
+                    <p className="text-xs text-muted-foreground">{e.durationMin} min &middot; {e.distanceKm} km</p>
+                  </div>
+                  <span className="shrink-0 font-semibold">
                     {e.currency} {e.fare.toLocaleString()}
                   </span>
                 </button>
@@ -224,43 +233,19 @@ export function BookRideForm({ onRequested }: { onRequested: (tripId: string) =>
           </div>
         </div>
 
-        <div>
-          <p className="mb-2 text-xs font-medium text-muted-foreground">Payment method</p>
-          <div className="flex gap-2">
-            {(["CASH", "WALLET"] as const).map((method) => (
-              <button
-                key={method}
-                type="button"
-                onClick={() => setPaymentMethod(method)}
-                className={cn(
-                  "rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors",
-                  paymentMethod === method ? "border-primary bg-primary/5" : "border-border hover:bg-secondary"
-                )}
-              >
-                {method === "CASH" ? "Cash" : "Wallet"}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {selectedEstimate && (
-          <div className="rounded-xl border border-border bg-secondary/40 p-3 text-sm">
-            <div className="flex justify-between text-muted-foreground">
-              <span>Distance</span>
-              <span>{selectedEstimate.distanceKm} km</span>
-            </div>
-            <div className="flex justify-between text-muted-foreground">
-              <span>Estimated time</span>
-              <span>{selectedEstimate.durationMin} min</span>
-            </div>
-            <div className="mt-1 flex justify-between font-semibold">
-              <span>Estimated fare</span>
-              <span>
-                {selectedEstimate.currency} {selectedEstimate.fare.toLocaleString()}
-              </span>
-            </div>
-          </div>
-        )}
+        <button
+          type="button"
+          onClick={() => setPaymentMethod(paymentMethod === "CASH" ? "WALLET" : "CASH")}
+          className="flex w-full items-center gap-3 rounded-xl border border-border px-3 py-2.5 text-left hover:bg-secondary/40"
+        >
+          {paymentMethod === "CASH" ? (
+            <Banknote className="h-5 w-5 shrink-0 text-muted-foreground" />
+          ) : (
+            <CreditCard className="h-5 w-5 shrink-0 text-muted-foreground" />
+          )}
+          <span className="flex-1 text-sm font-medium">{paymentMethod === "CASH" ? "Cash" : "Wallet"}</span>
+          <span className="text-xs text-muted-foreground">Change</span>
+        </button>
 
         <form action={formAction}>
           <input type="hidden" name="pickupAddress" value={pickup?.address ?? ""} />
@@ -281,7 +266,7 @@ export function BookRideForm({ onRequested }: { onRequested: (tripId: string) =>
             disabled={pending || !pickup || !dropoff || !vehicleType}
           >
             {pending && <Loader2 className="h-4 w-4 animate-spin" />}
-            Request ride
+            {selectedEstimate ? `Choose ${VEHICLE_TYPE_LABELS[selectedEstimate.vehicleType]}` : "Request ride"}
           </Button>
         </form>
       </div>
