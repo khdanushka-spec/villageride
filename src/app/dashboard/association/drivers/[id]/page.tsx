@@ -70,9 +70,11 @@ export default async function DriverReviewPage({ params }: { params: Promise<{ i
         <DriverRowActions driverId={driver.id} status={driver.status} />
       </div>
 
-      {!compliance.eligible && driver.status === "APPROVED" && (
+      {!compliance.eligible && (driver.status === "APPROVED" || driver.status === "COMPLIANCE_HOLD") && (
         <div className="rounded-2xl border border-destructive/40 bg-destructive/5 p-4">
-          <p className="text-sm font-medium text-destructive">This driver has outstanding compliance issues</p>
+          <p className="text-sm font-medium text-destructive">
+            {driver.status === "COMPLIANCE_HOLD" ? "Why this driver is on hold" : "This driver has outstanding compliance issues"}
+          </p>
           <ul className="mt-1 list-inside list-disc text-sm text-destructive/90">
             {compliance.blockers.map((b) => (
               <li key={b.code}>{b.message}</li>
