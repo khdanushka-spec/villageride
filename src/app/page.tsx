@@ -1,3 +1,4 @@
+import { PromoBanner } from "@/components/marketing/promo-banner";
 import { SiteHeader } from "@/components/marketing/site-header";
 import { Hero } from "@/components/marketing/hero";
 import { Features } from "@/components/marketing/features";
@@ -13,6 +14,7 @@ import { SiteFooter } from "@/components/marketing/site-footer";
 export default function Home() {
   return (
     <div className="flex min-h-svh flex-col">
+      <PromoBanner />
       <SiteHeader />
       <main className="flex-1">
         <Hero />
