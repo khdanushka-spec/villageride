@@ -11,6 +11,7 @@ type AvailableTrip = {
   pickupAddress: string;
   dropoffAddress: string;
   distanceKm: string;
+  distanceToPickupKm: number | null;
   estimatedFare: string;
   requestedAt: string;
 };
@@ -68,7 +69,12 @@ export function AvailableRidesList({ onAccepted }: { onAccepted: (tripId: string
       {trips.map((trip) => (
         <div key={trip.id} className="flex items-center gap-4 rounded-2xl border border-border bg-card p-4">
           <div className="flex-1 space-y-1">
-            <p className="text-sm font-medium">{trip.customerName}</p>
+            <p className="text-sm font-medium">
+              {trip.customerName}
+              {trip.distanceToPickupKm != null && (
+                <span className="ml-2 text-xs font-normal text-primary">{trip.distanceToPickupKm.toFixed(1)} km away</span>
+              )}
+            </p>
             <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
               <MapPin className="h-3 w-3 text-primary" /> {trip.pickupAddress}
             </p>
@@ -78,7 +84,7 @@ export function AvailableRidesList({ onAccepted }: { onAccepted: (tripId: string
           </div>
           <div className="text-right">
             <p className="font-semibold">LKR {Number(trip.estimatedFare).toLocaleString()}</p>
-            <p className="text-xs text-muted-foreground">{Number(trip.distanceKm).toFixed(1)} km</p>
+            <p className="text-xs text-muted-foreground">{Number(trip.distanceKm).toFixed(1)} km trip</p>
           </div>
           <Button size="sm" disabled={acceptingId === trip.id} onClick={() => handleAccept(trip.id)}>
             {acceptingId === trip.id && <Loader2 className="h-4 w-4 animate-spin" />}

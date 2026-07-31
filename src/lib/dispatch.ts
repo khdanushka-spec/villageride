@@ -10,6 +10,13 @@ import { prisma } from "@/lib/prisma";
  */
 export const NO_DRIVER_TIMEOUT_MS = 5 * 60 * 1000;
 
+/** How far from a pickup point a driver can be and still see the request —
+ * matches the radius already used for "nearby online drivers" shown to a
+ * customer before booking (src/actions/driver.ts). Without this, a driver
+ * anywhere in the world would see every open request regardless of
+ * distance, and the nearest one wouldn't be surfaced ahead of the rest. */
+export const MAX_DISPATCH_RADIUS_KM = 15;
+
 export function msRemainingBeforeExpiry(requestedAt: Date): number {
   return Math.max(0, NO_DRIVER_TIMEOUT_MS - (Date.now() - requestedAt.getTime()));
 }

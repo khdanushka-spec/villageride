@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { NO_DRIVER_TIMEOUT_MS } from "@/lib/dispatch";
+import { NO_DRIVER_TIMEOUT_MS, MAX_DISPATCH_RADIUS_KM } from "@/lib/dispatch";
+import { haversineKm } from "@/lib/routing";
 
 export async function GET() {
   const session = await auth();
@@ -33,17 +34,36 @@ export async function GET() {
     },
     include: { customer: { include: { user: { select: { name: true } } } } },
     orderBy: { requestedAt: "asc" },
-    take: 20,
+    take: 50,
   });
+
+  // Only ever show requests actually within reach, nearest first — without
+  // this a driver could see (and race to accept) a pickup on the other side
+  // of the map. Falls back to unfiltered/unsorted if we don't have a live
+  // position for this driver yet.
+  const driverPos =
+    driver.currentLat != null && driver.currentLng != null ? { lat: driver.currentLat, lng: driver.currentLng } : null;
+
+  const withDistance = trips.map((t) => ({
+    trip: t,
+    distanceToPickupKm: driverPos ? haversineKm(driverPos, { lat: t.pickupLat, lng: t.pickupLng }) : null,
+  }));
+
+  const nearby = driverPos
+    ? withDistance
+        .filter((t) => t.distanceToPickupKm! <= MAX_DISPATCH_RADIUS_KM)
+        .sort((a, b) => a.distanceToPickupKm! - b.distanceToPickupKm!)
+    : withDistance;
 
   return NextResponse.json({
     isOnline: true,
-    trips: trips.map((t) => ({
+    trips: nearby.slice(0, 20).map(({ trip: t, distanceToPickupKm }) => ({
       id: t.id,
       customerName: t.customer.user.name,
       pickupAddress: t.pickupAddress,
       dropoffAddress: t.dropoffAddress,
       distanceKm: t.distanceKm,
+      distanceToPickupKm,
       estimatedFare: t.estimatedFare,
       requestedAt: t.requestedAt,
     })),

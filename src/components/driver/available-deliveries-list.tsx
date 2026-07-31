@@ -11,6 +11,7 @@ type AvailableOrder = {
   vendorAddress: string;
   deliveryAddress: string;
   distanceKm: string | null;
+  distanceToPickupKm: number | null;
   deliveryFee: string;
   requestedAt: string;
 };
@@ -68,7 +69,12 @@ export function AvailableDeliveriesList({ onAccepted }: { onAccepted: (orderId: 
       {orders.map((order) => (
         <div key={order.id} className="flex items-center gap-4 rounded-2xl border border-border bg-card p-4">
           <div className="flex-1 space-y-1">
-            <p className="text-sm font-medium">{order.vendorName}</p>
+            <p className="text-sm font-medium">
+              {order.vendorName}
+              {order.distanceToPickupKm != null && (
+                <span className="ml-2 text-xs font-normal text-primary">{order.distanceToPickupKm.toFixed(1)} km away</span>
+              )}
+            </p>
             <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
               <MapPin className="h-3 w-3 text-primary" /> {order.vendorAddress}
             </p>
@@ -78,7 +84,9 @@ export function AvailableDeliveriesList({ onAccepted }: { onAccepted: (orderId: 
           </div>
           <div className="text-right">
             <p className="font-semibold">LKR {Number(order.deliveryFee).toLocaleString()}</p>
-            {order.distanceKm && <p className="text-xs text-muted-foreground">{Number(order.distanceKm).toFixed(1)} km</p>}
+            {order.distanceKm && (
+              <p className="text-xs text-muted-foreground">{Number(order.distanceKm).toFixed(1)} km delivery</p>
+            )}
           </div>
           <Button size="sm" disabled={acceptingId === order.id} onClick={() => handleAccept(order.id)}>
             {acceptingId === order.id && <Loader2 className="h-4 w-4 animate-spin" />}
