@@ -26,7 +26,7 @@ export function SiteHeader() {
           <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground">
             <Car className="h-5 w-5" />
           </span>
-          <span className="text-lg tracking-tight">VillageRide</span>
+          <span className="text-lg tracking-tight">V Rides</span>
         </Link>
 
         <nav className="hidden items-center gap-1 lg:flex">

@@ -8,10 +8,10 @@ export function DownloadApp() {
           <Smartphone className="h-7 w-7" />
         </span>
         <h2 className="max-w-lg text-3xl font-semibold tracking-tight text-balance">
-          Install VillageRide on your phone — no app store needed
+          Install V Rides on your phone — no app store needed
         </h2>
         <p className="max-w-md text-muted-foreground">
-          VillageRide works as an installable app. Open this site on your phone and choose{" "}
+          V Rides works as an installable app. Open this site on your phone and choose{" "}
           <span className="font-medium text-foreground">&ldquo;Add to Home Screen&rdquo;</span> from your browser
           menu for a fast, full-screen experience.
         </p>

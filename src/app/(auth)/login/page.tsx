@@ -29,7 +29,7 @@ export default function LoginPage() {
       </Tabs>
 
       <p className="text-center text-sm text-muted-foreground">
-        New to VillageRide?{" "}
+        New to V Rides?{" "}
         <Link href="/register" className="font-medium text-primary hover:underline">
           Create an account
         </Link>

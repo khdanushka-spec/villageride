@@ -32,10 +32,10 @@ async function deliverOtp(destination: string, code: string) {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        from: process.env.EMAIL_FROM ?? "VillageRide <no-reply@villageride.lk>",
+        from: process.env.EMAIL_FROM ?? "V Rides <no-reply@villageride.lk>",
         to: destination,
-        subject: "Your VillageRide verification code",
-        text: `Your VillageRide verification code is ${code}. It expires in ${OTP_TTL_MINUTES} minutes.`,
+        subject: "Your V Rides verification code",
+        text: `Your V Rides verification code is ${code}. It expires in ${OTP_TTL_MINUTES} minutes.`,
       }),
     });
     return;
@@ -50,7 +50,7 @@ async function deliverOtp(destination: string, code: string) {
       },
       body: JSON.stringify({
         to: destination,
-        message: `Your VillageRide verification code is ${code}. It expires in ${OTP_TTL_MINUTES} minutes.`,
+        message: `Your V Rides verification code is ${code}. It expires in ${OTP_TTL_MINUTES} minutes.`,
       }),
     });
     return;

@@ -13,12 +13,12 @@ const faqs = [
   },
   {
     question: "What payment methods are supported?",
-    answer: "Cash, credit/debit card, PayHere, Stripe, and your VillageRide wallet balance.",
+    answer: "Cash, credit/debit card, PayHere, Stripe, and your V Rides wallet balance.",
   },
   {
-    question: "Can I use VillageRide outside Sri Lanka?",
+    question: "Can I use V Rides outside Sri Lanka?",
     answer:
-      "VillageRide currently operates only in Sri Lanka. The platform is architected to support additional countries in the future.",
+      "V Rides currently operates only in Sri Lanka. The platform is architected to support additional countries in the future.",
   },
   {
     question: "What happens if my driver cancels?",

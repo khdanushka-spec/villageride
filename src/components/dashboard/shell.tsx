@@ -33,7 +33,7 @@ export function DashboardShell({
         <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
           <Car className="h-4 w-4" />
         </span>
-        <span className="tracking-tight">VillageRide</span>
+        <span className="tracking-tight">V Rides</span>
       </Link>
       <nav className="flex-1 space-y-0.5 px-2">
         {navItems.map((item) => {

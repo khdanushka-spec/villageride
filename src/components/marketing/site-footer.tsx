@@ -37,7 +37,7 @@ export function SiteFooter() {
               <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground">
                 <Car className="h-5 w-5" />
               </span>
-              <span className="text-lg tracking-tight">VillageRide</span>
+              <span className="text-lg tracking-tight">V Rides</span>
             </Link>
             <p className="mt-4 max-w-xs text-sm text-muted-foreground">
               A ride-hailing platform built for Sri Lanka&apos;s village taxi associations — fair fares, local
@@ -62,7 +62,7 @@ export function SiteFooter() {
         </div>
 
         <div className="mt-12 flex flex-col items-center justify-between gap-4 border-t border-border/60 pt-6 text-sm text-muted-foreground sm:flex-row">
-          <p>&copy; {new Date().getFullYear()} VillageRide Sri Lanka. All rights reserved.</p>
+          <p>&copy; {new Date().getFullYear()} V Rides Sri Lanka. All rights reserved.</p>
           <p>Made for village taxi associations across Sri Lanka.</p>
         </div>
       </div>

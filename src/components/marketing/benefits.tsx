@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 const driverBenefits = [
   "Keep more of every fare — commission stays within your own association",
   "Choose your own hours: go online and offline whenever you want",
-  "Weekly payouts straight to your VillageRide wallet",
+  "Weekly payouts straight to your V Rides wallet",
   "Build a public rating that follows you across every trip",
 ];
 

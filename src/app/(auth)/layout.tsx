@@ -9,7 +9,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
           <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground">
             <Car className="h-5 w-5" />
           </span>
-          <span className="text-lg tracking-tight">VillageRide</span>
+          <span className="text-lg tracking-tight">V Rides</span>
         </Link>
         <div className="flex flex-1 items-center justify-center">{children}</div>
       </div>
@@ -23,7 +23,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
               goes back to the village association, not a foreign platform.&rdquo;
             </p>
             <footer className="text-sm text-white/70">
-              VillageRide Sri Lanka
+              V Rides Sri Lanka
             </footer>
           </blockquote>
         </div>

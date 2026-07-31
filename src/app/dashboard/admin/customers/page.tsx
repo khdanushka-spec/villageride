@@ -22,7 +22,7 @@ export default async function AdminCustomersPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Customers</h1>
-        <p className="text-sm text-muted-foreground">Everyone who has booked a ride on VillageRide.</p>
+        <p className="text-sm text-muted-foreground">Everyone who has booked a ride on V Rides.</p>
       </div>
 
       <div className="overflow-x-auto rounded-2xl border border-border">

@@ -5,13 +5,13 @@ const points = [
     icon: Landmark,
     title: "Your association stays in control",
     description:
-      "Pricing, driver approvals, and commissions are set locally by each association — VillageRide provides the platform, not the policy.",
+      "Pricing, driver approvals, and commissions are set locally by each association — V Rides provides the platform, not the policy.",
   },
   {
     icon: Users,
     title: "Built for how villages already work",
     description:
-      "Most taxi societies already coordinate over phone and word of mouth. VillageRide digitizes that trust without replacing it.",
+      "Most taxi societies already coordinate over phone and word of mouth. V Rides digitizes that trust without replacing it.",
   },
   {
     icon: Handshake,
@@ -25,7 +25,7 @@ export function ValueProps() {
   return (
     <section className="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-2xl text-center">
-        <h2 className="text-3xl font-semibold tracking-tight sm:text-4xl">Why village associations choose VillageRide</h2>
+        <h2 className="text-3xl font-semibold tracking-tight sm:text-4xl">Why village associations choose V Rides</h2>
       </div>
 
       <div className="mt-14 grid gap-6 lg:grid-cols-3">
