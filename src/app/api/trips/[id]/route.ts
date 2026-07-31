@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { expireStaleTrip } from "@/lib/dispatch";
 
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await auth();
@@ -33,9 +34,11 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
+  const status = await expireStaleTrip(trip);
+
   return NextResponse.json({
     id: trip.id,
-    status: trip.status,
+    status,
     pickupAddress: trip.pickupAddress,
     dropoffAddress: trip.dropoffAddress,
     pickupLat: trip.pickupLat,

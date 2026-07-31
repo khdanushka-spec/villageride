@@ -8,6 +8,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cancelOrderAction } from "@/actions/orders";
 import { ORDER_STATUS_LABELS } from "@/lib/products";
 import { useTripProgress } from "@/hooks/use-trip-progress";
+import { useRequestCountdown } from "@/hooks/use-request-countdown";
 import type { RoadRoute } from "@/lib/routing";
 import type { OrderStatus } from "@prisma/client";
 
@@ -28,6 +29,7 @@ type OrderData = {
   itemsTotal: string;
   deliveryFee: string;
   totalAmount: string;
+  requestedAt: string;
   items: { name: string; quantity: number; unitPrice: string }[];
   driver: {
     name: string;
@@ -97,6 +99,9 @@ export function OrderTrackingPanel({ orderId, onClosed }: { orderId: string; onC
     dropoff: { lat: order?.deliveryLat ?? 0, lng: order?.deliveryLng ?? 0 },
   });
 
+  const waitingForDriver = order?.status === "READY_FOR_PICKUP" && !order?.driver;
+  const countdown = useRequestCountdown(order?.requestedAt, waitingForDriver);
+
   async function handleCancel() {
     setCancelling(true);
     const result = await cancelOrderAction(orderId, "Cancelled by customer");
@@ -120,6 +125,9 @@ export function OrderTrackingPanel({ orderId, onClosed }: { orderId: string; onC
         <div>
           <p className="text-xs uppercase tracking-wide text-muted-foreground">{order.vendorName}</p>
           <h3 className="text-lg font-semibold">{ORDER_STATUS_LABELS[order.status]}</h3>
+          {countdown && (
+            <p className="text-xs text-muted-foreground">Cancelling automatically in {countdown} if no driver accepts</p>
+          )}
         </div>
         {isTerminal && (
           <button onClick={onClosed} className="text-muted-foreground hover:text-foreground">

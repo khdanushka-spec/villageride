@@ -9,6 +9,7 @@ import { cancelTripAction, rateTripAction } from "@/actions/trips";
 import { VEHICLE_TYPE_LABELS } from "@/lib/vehicle-types";
 import { useActionState } from "react";
 import { useTripProgress } from "@/hooks/use-trip-progress";
+import { useRequestCountdown } from "@/hooks/use-request-countdown";
 import type { ActionState } from "@/actions/trips";
 import type { RoadRoute } from "@/lib/routing";
 
@@ -30,6 +31,7 @@ type TripData = {
   estimatedFare: string;
   finalFare: string | null;
   vehicleType: string;
+  requestedAt: string;
   driver: {
     name: string;
     phone: string | null;
@@ -105,6 +107,9 @@ export function TripStatusPanel({ tripId, onClosed }: { tripId: string; onClosed
     dropoff: { lat: trip?.dropoffLat ?? 0, lng: trip?.dropoffLng ?? 0 },
   });
 
+  const waitingForDriver = trip?.status === "REQUESTED" || trip?.status === "SEARCHING";
+  const countdown = useRequestCountdown(trip?.requestedAt, waitingForDriver);
+
   const [cancelState, setCancelState] = useState<{ error?: string } | null>(null);
   const [cancelling, setCancelling] = useState(false);
 
@@ -137,6 +142,9 @@ export function TripStatusPanel({ tripId, onClosed }: { tripId: string; onClosed
             {VEHICLE_TYPE_LABELS[trip.vehicleType as keyof typeof VEHICLE_TYPE_LABELS]}
           </p>
           <h3 className="text-lg font-semibold">{STATUS_LABELS[trip.status] ?? trip.status}</h3>
+          {countdown && (
+            <p className="text-xs text-muted-foreground">Cancelling automatically in {countdown} if no driver accepts</p>
+          )}
         </div>
         {isTerminal && (
           <button onClick={onClosed} className="text-muted-foreground hover:text-foreground">
@@ -243,7 +251,9 @@ export function TripStatusPanel({ tripId, onClosed }: { tripId: string; onClosed
         </form>
       )}
 
-      {(trip.status === "CANCELLED_BY_CUSTOMER" || trip.status === "CANCELLED_BY_DRIVER") && (
+      {(trip.status === "CANCELLED_BY_CUSTOMER" ||
+        trip.status === "CANCELLED_BY_DRIVER" ||
+        trip.status === "NO_DRIVERS_AVAILABLE") && (
         <Button variant="outline" className="w-full" onClick={onClosed}>
           Book another ride
         </Button>

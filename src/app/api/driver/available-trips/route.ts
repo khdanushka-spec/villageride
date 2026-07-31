@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { NO_DRIVER_TIMEOUT_MS } from "@/lib/dispatch";
 
 export async function GET() {
   const session = await auth();
@@ -21,7 +22,15 @@ export async function GET() {
   if (!vehicleType) return NextResponse.json({ trips: [], isOnline: true });
 
   const trips = await prisma.trip.findMany({
-    where: { status: { in: ["REQUESTED", "SEARCHING"] }, driverId: null, vehicleType },
+    where: {
+      status: { in: ["REQUESTED", "SEARCHING"] },
+      driverId: null,
+      vehicleType,
+      // A request this old will be auto-cancelled the next time the
+      // customer's own screen polls it — don't let a driver accept it in
+      // that same window.
+      requestedAt: { gte: new Date(Date.now() - NO_DRIVER_TIMEOUT_MS) },
+    },
     include: { customer: { include: { user: { select: { name: true } } } } },
     orderBy: { requestedAt: "asc" },
     take: 20,

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { expireStaleOrder } from "@/lib/dispatch";
 
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await auth();
@@ -35,9 +36,11 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
+  const status = await expireStaleOrder(order);
+
   return NextResponse.json({
     id: order.id,
-    status: order.status,
+    status,
     vendorName: order.vendor.name,
     vendorAddress: order.vendor.addressLine,
     vendorLat: order.vendor.lat,
