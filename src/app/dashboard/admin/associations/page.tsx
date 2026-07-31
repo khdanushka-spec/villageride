@@ -25,7 +25,7 @@ export default async function AdminAssociationsPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Associations</h1>
-        <p className="text-sm text-muted-foreground">Onboard village taxi associations and their admins.</p>
+        <p className="text-sm text-muted-foreground">Onboard taxi associations and their admins.</p>
       </div>
 
       <CreateAssociationForm />

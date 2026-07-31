@@ -40,7 +40,7 @@ export function SiteFooter() {
               <span className="text-lg tracking-tight">V Rides</span>
             </Link>
             <p className="mt-4 max-w-xs text-sm text-muted-foreground">
-              A ride-hailing platform built for Sri Lanka&apos;s village taxi associations — fair fares, local
+              A ride-hailing platform built for Sri Lanka&apos;s taxi associations — fair fares, local
               drivers, transparent commissions.
             </p>
           </div>
@@ -63,7 +63,7 @@ export function SiteFooter() {
 
         <div className="mt-12 flex flex-col items-center justify-between gap-4 border-t border-border/60 pt-6 text-sm text-muted-foreground sm:flex-row">
           <p>&copy; {new Date().getFullYear()} V Rides Sri Lanka. All rights reserved.</p>
-          <p>Made for village taxi associations across Sri Lanka.</p>
+          <p>Made for taxi associations across Sri Lanka.</p>
         </div>
       </div>
     </footer>

@@ -9,7 +9,7 @@ const faqs = [
   {
     question: "Who approves new drivers?",
     answer:
-      "Your local village taxi association reviews every driver application — license, NIC, vehicle registration, and insurance — before they can go online.",
+      "Your local taxi association reviews every driver application — license, NIC, vehicle registration, and insurance — before they can go online.",
   },
   {
     question: "What payment methods are supported?",

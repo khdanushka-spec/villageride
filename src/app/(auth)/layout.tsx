@@ -20,7 +20,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
           <blockquote className="max-w-md space-y-4">
             <p className="text-2xl font-medium leading-snug text-balance">
               &ldquo;Built for the roads our drivers actually know — every fare
-              goes back to the village association, not a foreign platform.&rdquo;
+              goes back to the association, not a foreign platform.&rdquo;
             </p>
             <footer className="text-sm text-white/70">
               V Rides Sri Lanka

@@ -153,7 +153,7 @@ const driverRegisterSchema = z.object({
   gnDivision: z.string().min(2, "Enter your Grama Niladhari division."),
 
   // Association & licence
-  associationId: z.string().min(1, "Select your village taxi association."),
+  associationId: z.string().min(1, "Select your taxi association."),
   licenseNumber: z.string().min(3, "Enter your driving licence number."),
   licenceClass: z.enum(LICENCE_CLASSES, "Select your driving licence class."),
   licenceIssuedAt: z.string().min(1, "Enter the date your licence was issued."),

@@ -28,11 +28,11 @@ const notoTamil = Noto_Sans_Tamil({
 export const metadata: Metadata = {
   metadataBase: new URL("https://villageride.lk"),
   title: {
-    default: "V Rides Sri Lanka — Taxi Booking by Your Village Association",
+    default: "V Rides Sri Lanka — Taxi Booking by Your Association",
     template: "%s | V Rides Sri Lanka",
   },
   description:
-    "Book a taxi, three-wheeler, van, or lorry from trusted drivers of your local village taxi association. Fair fares, verified drivers, live tracking — built for Sri Lanka.",
+    "Book a taxi, three-wheeler, van, or lorry from trusted drivers of your local taxi association. Fair fares, verified drivers, live tracking — built for Sri Lanka.",
   applicationName: "V Rides",
   manifest: "/manifest.webmanifest",
   icons: {

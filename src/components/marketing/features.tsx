@@ -5,7 +5,7 @@ const features = [
     icon: BadgeCheck,
     title: "Verified drivers & vehicles",
     description:
-      "Every driver is approved by their own village association after license, NIC, vehicle registration, and insurance checks.",
+      "Every driver is approved by their own association after license, NIC, vehicle registration, and insurance checks.",
   },
   {
     icon: MapPinned,
@@ -40,7 +40,7 @@ export function Features() {
       <div className="mx-auto max-w-2xl text-center">
         <h2 className="text-3xl font-semibold tracking-tight sm:text-4xl">Everything a modern ride platform needs</h2>
         <p className="mt-4 text-muted-foreground">
-          Built with the same expectations as the platforms you already use — designed around how villages actually move.
+          Built with the same expectations as the platforms you already use — designed around how communities actually move.
         </p>
       </div>
 

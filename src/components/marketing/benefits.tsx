@@ -37,7 +37,7 @@ export function Benefits() {
         </div>
 
         <div className="rounded-3xl border border-border/70 bg-card p-8">
-          <h3 className="text-xl font-semibold">For village taxi associations</h3>
+          <h3 className="text-xl font-semibold">For associations</h3>
           <ul className="mt-6 space-y-4">
             {associationBenefits.map((item) => (
               <li key={item} className="flex gap-3 text-sm">

@@ -154,7 +154,7 @@ export function DriverRegisterForm({ associations }: { associations: Association
         </h2>
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-2 sm:col-span-2">
-            <Label htmlFor="associationId">Village taxi association</Label>
+            <Label htmlFor="associationId">Taxi association</Label>
             <Select name="associationId" required>
               <SelectTrigger id="associationId" className="w-full">
                 <SelectValue placeholder={associations.length ? "Select your association" : "No associations yet"} />

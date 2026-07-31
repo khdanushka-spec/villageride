@@ -1,7 +1,7 @@
 {
   "name": "V Rides Sri Lanka",
   "short_name": "V Rides",
-  "description": "Book a taxi, three-wheeler, van, or lorry from your local village taxi association.",
+  "description": "Book a taxi, three-wheeler, van, or lorry from your local taxi association.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#fafaf8",

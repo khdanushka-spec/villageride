@@ -21,7 +21,7 @@ export default async function ShopPage() {
     <div className="space-y-6 pb-20">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Shop</h1>
-        <p className="text-sm text-muted-foreground">Order from local shops — delivered by your village association.</p>
+        <p className="text-sm text-muted-foreground">Order from local shops — delivered by your association.</p>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
