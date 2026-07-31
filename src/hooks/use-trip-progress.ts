@@ -5,29 +5,34 @@ import type { RoadRoute } from "@/lib/routing";
 
 type LatLng = { lat: number; lng: number };
 
+/** Which leg of the journey the driver is currently on, if any. Shared
+ * between rides (heading to pickup, then to drop-off) and deliveries
+ * (heading to the vendor, then to the customer) — same two-leg shape,
+ * different domain vocabulary. */
+export type TripPhase = "to-pickup" | "to-dropoff" | "idle";
+
 const POLL_MS = 7000;
 
 /**
- * Live "how much is left" for an active trip — the route, distance, and ETA
- * from the driver's current position to wherever they're headed next
- * (pickup while ACCEPTED, dropoff once IN_PROGRESS), re-fetched on an
- * interval as the driver's reported position moves. Returns null outside
- * those two phases, or before a driver position is available, so callers
- * fall back to the trip's fixed pickup->dropoff estimate.
+ * Live "how much is left" for an active trip or delivery — the route,
+ * distance, and ETA from the driver's current position to wherever they're
+ * headed next, re-fetched on an interval as the driver's reported position
+ * moves. Returns null while idle or before a driver position is available,
+ * so callers fall back to the fixed pickup->dropoff estimate.
  */
 export function useTripProgress({
-  status,
+  phase,
   driver,
   pickup,
   dropoff,
 }: {
-  status: string;
+  phase: TripPhase;
   driver: LatLng | null;
   pickup: LatLng;
   dropoff: LatLng;
 }): RoadRoute | null {
-  const target = status === "IN_PROGRESS" ? dropoff : pickup;
-  const active = (status === "ACCEPTED" || status === "IN_PROGRESS") && !!driver;
+  const target = phase === "to-dropoff" ? dropoff : pickup;
+  const active = phase !== "idle" && !!driver;
 
   const [progress, setProgress] = useState<RoadRoute | null>(null);
 

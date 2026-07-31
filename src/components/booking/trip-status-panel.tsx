@@ -99,7 +99,7 @@ export function TripStatusPanel({ tripId, onClosed }: { tripId: string; onClosed
       : null;
 
   const progress = useTripProgress({
-    status: trip?.status ?? "",
+    phase: trip?.status === "IN_PROGRESS" ? "to-dropoff" : trip?.status === "ACCEPTED" ? "to-pickup" : "idle",
     driver: driverLocation,
     pickup: { lat: trip?.pickupLat ?? 0, lng: trip?.pickupLng ?? 0 },
     dropoff: { lat: trip?.dropoffLat ?? 0, lng: trip?.dropoffLng ?? 0 },

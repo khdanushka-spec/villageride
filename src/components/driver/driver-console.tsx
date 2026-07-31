@@ -6,7 +6,9 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { toggleOnlineAction } from "@/actions/driver";
 import { AvailableRidesList } from "@/components/driver/available-rides-list";
+import { AvailableDeliveriesList } from "@/components/driver/available-deliveries-list";
 import { ActiveTripPanel } from "@/components/driver/active-trip-panel";
+import { ActiveDeliveryPanel } from "@/components/driver/active-delivery-panel";
 import { useDriverLocationTracking } from "@/hooks/use-driver-location-tracking";
 
 const LocationMap = dynamic(() => import("@/components/booking/location-map").then((m) => m.LocationMap), {
@@ -17,12 +19,15 @@ const LocationMap = dynamic(() => import("@/components/booking/location-map").th
 export function DriverConsole({
   initialIsOnline,
   initialActiveTripId,
+  initialActiveDeliveryId,
 }: {
   initialIsOnline: boolean;
   initialActiveTripId: string | null;
+  initialActiveDeliveryId: string | null;
 }) {
   const [isOnline, setIsOnline] = useState(initialIsOnline);
   const [activeTripId, setActiveTripId] = useState(initialActiveTripId);
+  const [activeDeliveryId, setActiveDeliveryId] = useState(initialActiveDeliveryId);
   const [toggling, setToggling] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -43,8 +48,13 @@ export function DriverConsole({
     }
   }
 
+  // A driver only ever works one job at a time — whichever they picked up
+  // first takes over the console until it's done.
   if (activeTripId) {
     return <ActiveTripPanel tripId={activeTripId} onDone={() => setActiveTripId(null)} />;
+  }
+  if (activeDeliveryId) {
+    return <ActiveDeliveryPanel orderId={activeDeliveryId} onDone={() => setActiveDeliveryId(null)} />;
   }
 
   return (
@@ -55,7 +65,7 @@ export function DriverConsole({
             {isOnline ? "You're online" : "You're offline"}
           </Label>
           <p className="text-sm text-muted-foreground">
-            {isOnline ? "You'll receive nearby ride requests." : "Go online to start receiving rides."}
+            {isOnline ? "You'll receive nearby ride and delivery requests." : "Go online to start receiving requests."}
           </p>
         </div>
         <Switch id="online-toggle" checked={isOnline} disabled={toggling} onCheckedChange={handleToggle} />
@@ -68,7 +78,14 @@ export function DriverConsole({
           <div className="h-48 overflow-hidden rounded-2xl border border-border">
             <LocationMap driver={position} className="h-full w-full" />
           </div>
-          <AvailableRidesList onAccepted={setActiveTripId} />
+          <div className="space-y-3">
+            <h3 className="text-sm font-semibold text-muted-foreground">Ride requests</h3>
+            <AvailableRidesList onAccepted={setActiveTripId} />
+          </div>
+          <div className="space-y-3">
+            <h3 className="text-sm font-semibold text-muted-foreground">Delivery requests</h3>
+            <AvailableDeliveriesList onAccepted={setActiveDeliveryId} />
+          </div>
         </>
       ) : (
         <div className="rounded-2xl border border-dashed border-border p-10 text-center text-sm text-muted-foreground">

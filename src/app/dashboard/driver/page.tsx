@@ -118,9 +118,14 @@ export default async function DriverDashboardPage() {
     );
   }
 
-  const activeTrip = await prisma.trip.findFirst({
-    where: { driverId: driver.id, status: { in: ["ACCEPTED", "DRIVER_ARRIVED", "IN_PROGRESS"] } },
-  });
+  const [activeTrip, activeDelivery] = await Promise.all([
+    prisma.trip.findFirst({
+      where: { driverId: driver.id, status: { in: ["ACCEPTED", "DRIVER_ARRIVED", "IN_PROGRESS"] } },
+    }),
+    prisma.order.findFirst({
+      where: { driverId: driver.id, status: { in: ["DRIVER_ASSIGNED", "PICKED_UP"] } },
+    }),
+  ]);
 
   return (
     <div className="space-y-6">
@@ -141,7 +146,11 @@ export default async function DriverDashboardPage() {
           </AlertDescription>
         </Alert>
       )}
-      <DriverConsole initialIsOnline={driver.isOnline} initialActiveTripId={activeTrip?.id ?? null} />
+      <DriverConsole
+        initialIsOnline={driver.isOnline}
+        initialActiveTripId={activeTrip?.id ?? null}
+        initialActiveDeliveryId={activeDelivery?.id ?? null}
+      />
     </div>
   );
 }
