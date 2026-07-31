@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono, Noto_Sans_Sinhala, Noto_Sans_Tamil } from "next/font/google";
 import { Providers } from "@/components/providers";
+import { SITE_URL } from "@/lib/site";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -26,7 +27,7 @@ const notoTamil = Noto_Sans_Tamil({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://villageride.lk"),
+  metadataBase: new URL(SITE_URL),
   title: {
     default: "V Rides Sri Lanka — Taxi Booking by Your Association",
     template: "%s | V Rides Sri Lanka",
